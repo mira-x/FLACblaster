@@ -1,9 +1,7 @@
 package xyz.mordorx.flacblaster.fs
 
-import android.app.Service
-import android.content.Intent
-import android.os.Binder
-import android.os.IBinder
+import android.content.Context
+import android.content.Context.MODE_PRIVATE
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
@@ -11,16 +9,20 @@ import java.util.HashMap
 import java.util.stream.Collectors
 import kotlin.collections.forEachIndexed
 
-class ScannerService : Service() {
-    inner class LocalBinder : Binder() {
-        fun getService(): ScannerService = this@ScannerService
-    }
-    private val binder = LocalBinder()
-    override fun onBind(intent: Intent): IBinder {
-        return binder
+/**
+ * This is the singleton that scans for changes to the FS and writes them to the DB.
+ *
+ * To better understand this, please read ARCHITECTURE.md.
+ **/
+class MediaScannerSingleton private constructor(val ctx: Context) {
+    companion object {
+        private var singleton: MediaScannerSingleton? = null
+        fun get(ctx: Context): MediaScannerSingleton {
+            return singleton ?: MediaScannerSingleton(ctx)
+        }
     }
 
-    private fun db(): DatabaseSingleton = DatabaseSingleton.get(applicationContext)
+    private fun db(): DatabaseSingleton = DatabaseSingleton.get(ctx)
 
     val scanStateProgress = MutableStateFlow(0f)
     val scanStateLabel = MutableStateFlow("")
@@ -37,42 +39,42 @@ class ScannerService : Service() {
      * Don't run on UI thread! It *will* crash
      **/
     private fun scan() {
-        Log.d("ScannerService", "Starting scan transaction...")
+        Log.d("MediaScannerSingleton", "Starting scan transaction...")
         scanStateProgress.value = 0f
         scanStateLabel.value = ""
         scanState.value = true
         db().runInTransaction {
-            Log.d("ScannerService", "Starting scan phase 1...")
+            Log.d("MediaScannerSingleton", "Starting scan phase 1...")
             scanStateLabel.value = "(1/5) Setting up DB..."
             scanPhase1()
+            Thread.sleep(1000)
 
-            Log.d("ScannerService", "Starting scan phase 2...")
+            Log.d("MediaScannerSingleton", "Starting scan phase 2...")
             scanStateLabel.value = "(2/5) Looking for new files..."
             val filesAndFoldersToCheck = scanPhase2()
             filesAndFoldersToCheck.forEach {
-                Log.d("ScannerService", "Phase 2 found: " + it.absolutePath)
+                Log.d("MediaScannerSingleton", "Phase 2 found: " + it.absolutePath)
             }
 
             if(filesAndFoldersToCheck.size == 0) {
                 return@runInTransaction
             }
 
-            Log.d("ScannerService", "Starting scan phase 3...")
+            Log.d("MediaScannerSingleton", "Starting scan phase 3...")
             scanStateLabel.value = "(3/5) Reading file metadata..."
             scanPhase3(filesAndFoldersToCheck)
 
-            Log.d("ScannerService", "Starting scan phase 4...")
+            Log.d("MediaScannerSingleton", "Starting scan phase 4...")
             scanStateLabel.value = "(4/5) Collecting folder metadata..."
             scanPhase4(filesAndFoldersToCheck)
 
-            Log.d("ScannerService", "Starting scan phase 5...")
+            Log.d("MediaScannerSingleton", "Starting scan phase 5...")
             scanStateLabel.value = "(5/5) Purging DB..."
-            // TODO: Only purge changed folders
             scanPhase5(filesAndFoldersToCheck)
         }
         scanState.value = false
         scanStateLabel.value = ""
-        Log.d("ScannerService", "Committing scan transaction...")
+        Log.d("MediaScannerSingleton", "Committing scan transaction...")
     }
 
     /** Use this for progress bars */
@@ -128,7 +130,7 @@ class ScannerService : Service() {
         if (existing > 0) {
             return
         }
-        val rootDir = getSharedPreferences(packageName, MODE_PRIVATE).getString("RootDirectory", "")!!
+        val rootDir = ctx.getSharedPreferences(ctx.packageName, MODE_PRIVATE).getString("RootDirectory", "")!!
         if (rootDir.isEmpty()) {
             throw RuntimeException("No music root directory is set")
         }
@@ -168,9 +170,9 @@ class ScannerService : Service() {
      * @param modifiedPathsSet A Set of files that may or may not exist and may or may not be modified
      */
     private fun scanPhase3(modifiedPathsSet: HashSet<File>) {
-        val allFileEntites = db().fileEntityDao().getAllFiles(false)
+        val allFileEntities = db().fileEntityDao().getAllFiles(false)
         val entityMap = modifiedPathsSet.associate { file ->
-            file to (allFileEntites.find { entity -> entity.path == file.absolutePath } ?: FileEntity.m1OfFile(file))
+            file to (allFileEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.m1OfFile(file))
         }
         entityMap.forEachWithProgress { f, entity ->
             if (f.lastModified() == entity.lastModifiedMs && f.length() == entity.size) {

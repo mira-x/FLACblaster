@@ -1,13 +1,9 @@
 package xyz.mordorx.flacblaster
 
-import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
-import android.os.IBinder
 import android.provider.DocumentsContract
 import android.provider.Settings
 import android.util.Log
@@ -24,16 +20,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
@@ -45,7 +36,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,46 +49,22 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import xyz.mordorx.flacblaster.fs.ScannerService
+import xyz.mordorx.flacblaster.fs.MediaScannerSingleton
 import xyz.mordorx.flacblaster.ui.theme.ActiveColorScheme
 import xyz.mordorx.flacblaster.ui.theme.FLACblasterTheme
 import java.io.File
 
 
 class MainActivity : ComponentActivity() {
-    private var scannerService: ScannerService? = null
-    private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-            scannerService = (binder as ScannerService.LocalBinder).getService()
-        }
-
-        override fun onServiceDisconnected(name: ComponentName) {
-            scannerService = null
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         appSetup()
 
-        if(!bindService(
-            Intent(this, ScannerService::class.java),
-            connection,
-            BIND_AUTO_CREATE
-        )) {
-            Log.e("MainActivity", "Could not bind ScannerService")
-        }
-
         enableEdgeToEdge()
         setContent {
             FLACblasterTheme {
-                val scannerService = rememberScannerService()
+                FileListScreen()
 
-                if (scannerService != null) {
-                    FileListScreen(scannerService)
-                } else {
-                    CircularProgressIndicator(Modifier.fillMaxSize()) // Oder Splash
-                }
                 /*Scaffold(modifier = Modifier
                     .fillMaxSize()
                     //.systemBarsPadding()
@@ -129,7 +95,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        unbindService(connection)
     }
 
     /**
@@ -175,10 +140,12 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileListScreen(scannerService: ScannerService) {
-    val isScanning by scannerService.scanState.collectAsState()
-    val progress by scannerService.scanStateProgress.collectAsState()
-    val label by scannerService.scanStateLabel.collectAsState()
+fun FileListScreen() {
+    val ctx = LocalContext.current
+    val scanner = remember { MediaScannerSingleton.get(ctx) }
+    val isScanning by scanner.scanState.collectAsState()
+    val progress by scanner.scanStateProgress.collectAsState()
+    val label by scanner.scanStateLabel.collectAsState()
 
     val pullRefreshState = rememberPullToRefreshState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -213,7 +180,7 @@ fun FileListScreen(scannerService: ScannerService) {
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = isScanning,
-            onRefresh = { scannerService.scanAsync() },
+            onRefresh = { scanner.scanAsync() },
             state = pullRefreshState,
             modifier = Modifier.padding(padding)
         ) {
@@ -240,33 +207,6 @@ fun FileTree(f: File) {
             }
         }
     }
-}
-
-@Composable
-fun rememberScannerService(): ScannerService? {
-    val context = LocalContext.current
-    var service by remember { mutableStateOf<ScannerService?>(null) }
-
-    DisposableEffect(context) {
-        val connection = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-                service = (binder as ScannerService.LocalBinder).getService()
-            }
-            override fun onServiceDisconnected(name: ComponentName) {
-                service = null
-            }
-        }
-
-        context.bindService(
-            Intent(context, ScannerService::class.java),
-            connection,
-            Context.BIND_AUTO_CREATE
-        )
-
-        onDispose { context.unbindService(connection) }
-    }
-
-    return service
 }
 
 @Composable
