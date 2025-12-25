@@ -18,10 +18,10 @@ android {
 
     defaultConfig {
         applicationId = "xyz.mordorx.flacblaster"
-        minSdk = 29
+        minSdk = 30
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -60,7 +60,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation("androidx.compose.material:material:1.10.0")
+    implementation(libs.androidx.material)
     //implementation("androidx.compose.material:material-icons-extended:1.7.7")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -73,7 +73,7 @@ dependencies {
     implementation(libs.bonsai.core)
     implementation(libs.bonsai.file.system)
     implementation(libs.bonsai.json)
-    implementation("androidx.preference:preference-ktx:1.2.0")
+    implementation("androidx.preference:preference-ktx:1.2.1")
 
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)

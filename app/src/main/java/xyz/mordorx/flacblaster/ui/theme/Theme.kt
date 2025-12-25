@@ -1,7 +1,5 @@
 package xyz.mordorx.flacblaster.ui.theme
 
-import android.R
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -16,8 +14,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import cafe.adriel.bonsai.core.BonsaiStyle
-import cafe.adriel.bonsai.filesystem.FileSystemBonsaiStyle
-import kotlinx.serialization.descriptors.PrimitiveKind
 
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
@@ -41,7 +37,7 @@ private val LightColorScheme = lightColorScheme(
     */
 )
 
-public var ActiveColorScheme: ColorScheme = DarkColorScheme
+var ActiveColorScheme: ColorScheme = DarkColorScheme
 
 @Composable
 fun FLACblasterTheme(
@@ -70,12 +66,12 @@ fun FLACblasterTheme(
 }
 
 @Composable
-fun BonsaiTheme(
+fun bonsaiTheme(
     darkTheme: Boolean = isSystemInDarkTheme()
 ): BonsaiStyle<String> {
     val scheme = if (darkTheme) DarkColorScheme else LightColorScheme
     val tint = ColorFilter.tint(scheme.onSurface)
-    return BonsaiStyle<String>(
+    return BonsaiStyle(
         nodeNameTextStyle = TextStyle(scheme.onSurface),
         toggleIconColorFilter = tint,
         nodeCollapsedIconColorFilter = tint,

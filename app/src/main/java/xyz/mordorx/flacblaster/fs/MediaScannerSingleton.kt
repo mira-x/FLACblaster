@@ -56,7 +56,7 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
                 Log.d("MediaScannerSingleton", "Phase 2 found: " + it.absolutePath)
             }
 
-            if(filesAndFoldersToCheck.size == 0) {
+            if(filesAndFoldersToCheck.isEmpty()) {
                 return@runInTransaction
             }
 
@@ -171,8 +171,8 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
      */
     private fun scanPhase3(modifiedPathsSet: HashSet<File>) {
         val allFileEntities = db().fileEntityDao().getAllFiles(false)
-        val entityMap = modifiedPathsSet.associate { file ->
-            file to (allFileEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.m1OfFile(file))
+        val entityMap = modifiedPathsSet.associateWith { file ->
+            allFileEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.m1OfFile(file)
         }
         entityMap.forEachWithProgress { f, entity ->
             if (f.lastModified() == entity.lastModifiedMs && f.length() == entity.size) {
@@ -196,8 +196,8 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     private fun scanPhase4(modifiedPathsSet: HashSet<File>) {
         val allEntities = db().fileEntityDao().getAllFiles()
         val allFolderEntities = allEntities.stream().filter { it.isFolder }.collect(Collectors.toList())
-        val folderEntityMap = modifiedPathsSet.associate { file ->
-            file to (allFolderEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.m1OfFile(file))
+        val folderEntityMap = modifiedPathsSet.associateWith { file ->
+            allFolderEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.m1OfFile(file)
         }
 
         folderEntityMap.forEachWithProgress { folder, entity ->
