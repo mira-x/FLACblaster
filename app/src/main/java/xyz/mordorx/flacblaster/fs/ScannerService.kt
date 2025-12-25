@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.util.HashMap
 import java.util.stream.Collectors
+import kotlin.collections.forEachIndexed
 
 class ScannerService : Service() {
     inner class LocalBinder : Binder() {
@@ -20,43 +21,74 @@ class ScannerService : Service() {
     }
 
     private fun db(): DatabaseSingleton = DatabaseSingleton.get(applicationContext)
-    val scanProcessProgress = MutableStateFlow(0f)
-    val scanProcessLabel = MutableStateFlow("")
 
-    fun helloWorld() {
-        Log.i("ScannerService", "HI!!!!")
-        val scanThread = Thread(this::scan).start()
+    val scanStateProgress = MutableStateFlow(0f)
+    val scanStateLabel = MutableStateFlow("")
+    val scanState = MutableStateFlow(false)
+
+    fun scanAsync() {
+        if (scanState.value) {
+            return
+        }
+        Thread(this::scan).start()
     }
 
-    /** Don't run on UI thread! It *will* crash */
-    fun scan() {
+    /**
+     * Don't run on UI thread! It *will* crash
+     **/
+    private fun scan() {
         Log.d("ScannerService", "Starting scan transaction...")
+        scanStateProgress.value = 0f
+        scanStateLabel.value = ""
+        scanState.value = true
         db().runInTransaction {
             Log.d("ScannerService", "Starting scan phase 1...")
+            scanStateLabel.value = "(1/5) Setting up DB..."
             scanPhase1()
+
             Log.d("ScannerService", "Starting scan phase 2...")
+            scanStateLabel.value = "(2/5) Looking for new files..."
             val filesAndFoldersToCheck = scanPhase2()
             filesAndFoldersToCheck.forEach {
                 Log.d("ScannerService", "Phase 2 found: " + it.absolutePath)
             }
+
+            if(filesAndFoldersToCheck.size == 0) {
+                return@runInTransaction
+            }
+
             Log.d("ScannerService", "Starting scan phase 3...")
+            scanStateLabel.value = "(3/5) Reading file metadata..."
             scanPhase3(filesAndFoldersToCheck)
+
             Log.d("ScannerService", "Starting scan phase 4...")
+            scanStateLabel.value = "(4/5) Collecting folder metadata..."
             scanPhase4(filesAndFoldersToCheck)
+
             Log.d("ScannerService", "Starting scan phase 5...")
-            scanPhase5()
+            scanStateLabel.value = "(5/5) Purging DB..."
+            // TODO: Only purge changed folders
+            scanPhase5(filesAndFoldersToCheck)
         }
+        scanState.value = false
+        scanStateLabel.value = ""
         Log.d("ScannerService", "Committing scan transaction...")
     }
 
     /** Use this for progress bars */
-    fun <T> List<T>.forEachWithProgress(
-        progress: MutableStateFlow<Float>,
-        action: (T) -> Unit
-    ) {
+    fun <T> List<T>.forEachWithProgress(action: (T) -> Unit) {
         forEachIndexed { index, item ->
             action(item)
-            progress.value = (index + 1f) / size
+            scanStateProgress.value = (index + 1f) / size
+        }
+    }
+
+    /** Use this for progress bars */
+    fun <K, V> Map<K, V>.forEachWithProgress(action: (K, V) -> Unit) {
+        var index = 0
+        forEach { (key, value) ->
+            action(key, value)
+            scanStateProgress.value = (++index).toFloat() / size
         }
     }
 
@@ -91,7 +123,7 @@ class ScannerService : Service() {
     /**
      * @throws RuntimeException
      */
-    fun scanPhase1() {
+    private fun scanPhase1() {
         val existing = db().fileEntityDao().getFileEntityCount()
         if (existing > 0) {
             return
@@ -113,17 +145,17 @@ class ScannerService : Service() {
         db().fileEntityDao().upsert(rootEntity)
     }
 
-    fun scanPhase2(): HashSet<File> {
+    private fun scanPhase2(): HashSet<File> {
         val existingFolderEntities = db().fileEntityDao().getAllFiles(true)
         val modifiedPaths = HashSet<File>()
-        existingFolderEntities.forEach { existingFolderEntity ->
+        existingFolderEntities.forEachWithProgress { existingFolderEntity ->
             val existingFolder = File(existingFolderEntity.path)
             if (!existingFolder.exists()) {
                 modifiedPaths.add(existingFolder)
-                return@forEach
+                return@forEachWithProgress
             }
             if (existingFolder.lastModified() == existingFolderEntity.lastModifiedMs) {
-                return@forEach
+                return@forEachWithProgress
             }
             val directChildren = existingFolder.listFilesRecursively().filter { !it.isHidden }
             modifiedPaths.addAll(directChildren)
@@ -135,14 +167,14 @@ class ScannerService : Service() {
     /**
      * @param modifiedPathsSet A Set of files that may or may not exist and may or may not be modified
      */
-    fun scanPhase3(modifiedPathsSet: HashSet<File>) {
+    private fun scanPhase3(modifiedPathsSet: HashSet<File>) {
         val allFileEntites = db().fileEntityDao().getAllFiles(false)
         val entityMap = modifiedPathsSet.associate { file ->
             file to (allFileEntites.find { entity -> entity.path == file.absolutePath } ?: FileEntity.m1OfFile(file))
         }
-        entityMap.forEach { (f, entity) ->
+        entityMap.forEachWithProgress { f, entity ->
             if (f.lastModified() == entity.lastModifiedMs && f.length() == entity.size) {
-                return@forEach
+                return@forEachWithProgress
             }
 
             entity.apply {
@@ -159,14 +191,14 @@ class ScannerService : Service() {
     /**
      * @param modifiedPathsSet A Set of files that may or may not exist and may or may not be modified
      */
-    fun scanPhase4(modifiedPathsSet: HashSet<File>) {
+    private fun scanPhase4(modifiedPathsSet: HashSet<File>) {
         val allEntities = db().fileEntityDao().getAllFiles()
         val allFolderEntities = allEntities.stream().filter { it.isFolder }.collect(Collectors.toList())
         val folderEntityMap = modifiedPathsSet.associate { file ->
             file to (allFolderEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.m1OfFile(file))
         }
 
-        folderEntityMap.forEach { (folder, entity) ->
+        folderEntityMap.forEachWithProgress { folder, entity ->
             val recursiveChildrenEntities = allEntities
                 .stream()
                 .filter { it.path.startsWith(folder.path) && !it.isFolder }
@@ -183,16 +215,24 @@ class ScannerService : Service() {
         db().fileEntityDao().upsert(*folderEntityMap.values.toTypedArray())
     }
 
-    fun scanPhase5() {
-        val deleted = db()
-            .fileEntityDao()
-            .getAllFiles()
-            .parallelStream()
-            .filter { !File(it.path).exists() }
-            .collect(Collectors.toList())
-            .toTypedArray()
+    private fun scanPhase5(modifiedPathsSet: HashSet<File>) {
+        // Deleted files won't shop up in modifiedPathsSet, but their folders!
+        val modifiedFolders = modifiedPathsSet.filter { it.isDirectory }
 
-        db().fileEntityDao().delete(*deleted)
+        val possiblyDeleted = mutableSetOf<FileEntity>()
+        modifiedFolders.forEach { folder ->
+            possiblyDeleted.addAll(db().fileEntityDao().getAllFilesPrefixed(folder.absolutePath))
+        }
+
+        val deleted = mutableListOf<FileEntity>()
+
+        possiblyDeleted.toList().forEachWithProgress {
+            if (!File(it.path).exists()) {
+                deleted.add(it)
+            }
+        }
+
+        db().fileEntityDao().delete(*deleted.toTypedArray())
     }
 
 }

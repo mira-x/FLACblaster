@@ -1,10 +1,9 @@
 package xyz.mordorx.flacblaster
 
-import android.Manifest
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -29,13 +28,26 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsTopHeight
-import androidx.compose.material3.Button
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,10 +56,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.PermissionChecker
-import xyz.mordorx.flacblaster.fs.DatabaseSingleton
 import xyz.mordorx.flacblaster.fs.ScannerService
 import xyz.mordorx.flacblaster.ui.theme.ActiveColorScheme
 import xyz.mordorx.flacblaster.ui.theme.FLACblasterTheme
@@ -81,7 +92,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FLACblasterTheme {
-                Scaffold(modifier = Modifier
+                val scannerService = rememberScannerService()
+
+                if (scannerService != null) {
+                    FileListScreen(scannerService)
+                } else {
+                    CircularProgressIndicator(Modifier.fillMaxSize()) // Oder Splash
+                }
+                /*Scaffold(modifier = Modifier
                     .fillMaxSize()
                     //.systemBarsPadding()
                     .windowInsetsTopHeight(WindowInsets.statusBars)
@@ -104,7 +122,7 @@ class MainActivity : ComponentActivity() {
                             Text("Clear DB!")
                         }
                     }
-                }
+                }*/
             }
         }
     }
@@ -155,6 +173,62 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FileListScreen(scannerService: ScannerService) {
+    val isScanning by scannerService.scanState.collectAsState()
+    val progress by scannerService.scanStateProgress.collectAsState()
+    val label by scannerService.scanStateLabel.collectAsState()
+
+    val pullRefreshState = rememberPullToRefreshState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(isScanning) {
+        if (isScanning) {
+            snackbarHostState.showSnackbar(
+                message = "Scanning...",
+                duration = SnackbarDuration.Indefinite
+            )
+        } else {
+            snackbarHostState.currentSnackbarData?.dismiss()
+        }
+    }
+
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) {
+                Snackbar {
+                    Column {
+                        Text(label)
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets.systemBars
+    ) { padding ->
+        PullToRefreshBox(
+            isRefreshing = isScanning,
+            onRefresh = { scannerService.scanAsync() },
+            state = pullRefreshState,
+            modifier = Modifier.padding(padding)
+        ) {
+            LazyColumn(Modifier.fillMaxSize()) {
+                item {
+                    Text("Welcome to FLACblaster!")
+                }
+                item {
+                    Text("Swipe down to re-scan your music library!")
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun FileTree(f: File) {
     if(f.isFile) {
@@ -166,6 +240,33 @@ fun FileTree(f: File) {
             }
         }
     }
+}
+
+@Composable
+fun rememberScannerService(): ScannerService? {
+    val context = LocalContext.current
+    var service by remember { mutableStateOf<ScannerService?>(null) }
+
+    DisposableEffect(context) {
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+                service = (binder as ScannerService.LocalBinder).getService()
+            }
+            override fun onServiceDisconnected(name: ComponentName) {
+                service = null
+            }
+        }
+
+        context.bindService(
+            Intent(context, ScannerService::class.java),
+            connection,
+            Context.BIND_AUTO_CREATE
+        )
+
+        onDispose { context.unbindService(connection) }
+    }
+
+    return service
 }
 
 @Composable
