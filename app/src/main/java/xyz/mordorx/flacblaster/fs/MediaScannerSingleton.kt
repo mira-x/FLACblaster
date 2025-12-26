@@ -3,13 +3,10 @@ package xyz.mordorx.flacblaster.fs
 import android.content.Context
 import android.content.Context.MODE_PRIVATE
 import android.os.ParcelFileDescriptor
-import android.system.Os
 import android.util.Log
 import com.simplecityapps.ktaglib.KTagLib
 import kotlinx.coroutines.flow.MutableStateFlow
-import okio.sink
 import java.io.File
-import java.util.HashMap
 import java.util.stream.Collectors
 import kotlin.collections.forEachIndexed
 
@@ -31,11 +28,13 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     val scanStateProgress = MutableStateFlow(0f)
     val scanStateLabel = MutableStateFlow("")
     val scanState = MutableStateFlow(false)
+    val scanMode = MutableStateFlow(MediaScanMode.CORRECT)
 
-    fun scanAsync() {
+    fun scanAsync(mode: MediaScanMode) {
         if (scanState.value) {
             return
         }
+        scanMode.value = mode
         Thread(this::scan).start()
     }
 
@@ -48,33 +47,25 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
         scanStateLabel.value = ""
         scanState.value = true
         db().runInTransaction {
-            Log.d("MediaScannerSingleton", "Starting scan phase 1...")
-            scanStateLabel.value = "(1/5) Setting up DB..."
-            scanPhase1()
-            Thread.sleep(1000)
-
-            Log.d("MediaScannerSingleton", "Starting scan phase 2...")
-            scanStateLabel.value = "(2/5) Looking for new files..."
-            val filesAndFoldersToCheck = scanPhase2()
-            filesAndFoldersToCheck.forEach {
-                Log.d("MediaScannerSingleton", "Phase 2 found: " + it.absolutePath)
-            }
+            Log.d("MediaScannerSingleton", "Starting scan phase 1 in mode ${scanMode.value.name}...")
+            scanStateLabel.value = "(1/4) Looking for new files..."
+            val filesAndFoldersToCheck = scanPhase1()
 
             if(filesAndFoldersToCheck.isEmpty()) {
                 return@runInTransaction
             }
 
+            Log.d("MediaScannerSingleton", "Starting scan phase 2...")
+            scanStateLabel.value = "(2/4) Reading file metadata..."
+            val updatedSongs = scanPhase2(filesAndFoldersToCheck)
+
             Log.d("MediaScannerSingleton", "Starting scan phase 3...")
-            scanStateLabel.value = "(3/5) Reading file metadata..."
-            scanPhase3(filesAndFoldersToCheck)
+            scanStateLabel.value = "(3/4) Collecting folder metadata..."
+            scanPhase3(updatedSongs)
 
             Log.d("MediaScannerSingleton", "Starting scan phase 4...")
-            scanStateLabel.value = "(4/5) Collecting folder metadata..."
+            scanStateLabel.value = "(4/4) Purging DB..."
             scanPhase4(filesAndFoldersToCheck)
-
-            Log.d("MediaScannerSingleton", "Starting scan phase 5...")
-            scanStateLabel.value = "(5/5) Purging DB..."
-            scanPhase5(filesAndFoldersToCheck)
         }
         scanState.value = false
         scanStateLabel.value = ""
@@ -82,7 +73,7 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     }
 
     /** Use this for progress bars */
-    fun <T> List<T>.forEachWithProgress(action: (T) -> Unit) {
+    fun <T> Collection<T>.forEachWithProgress(action: (T) -> Unit) {
         forEachIndexed { index, item ->
             action(item)
             scanStateProgress.value = (index + 1f) / size
@@ -108,6 +99,15 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
         return audioExtensions.find { ext -> this.absolutePath.endsWith(ext, true) } != null
     }
 
+    /** Returns all parent directories up the specified root directory */
+    fun File.allParents(rootDir: File): Set<File> {
+        val out = mutableSetOf(this)
+        if (this.parentFile != null && this.parentFile != rootDir) {
+            out.addAll(this.parentFile!!.allParents(rootDir))
+        }
+        return out
+    }
+
     /** Always returns this file and all child elements, excluding hidden files */
     fun File.listFilesRecursively(): Set<File> {
         val out = mutableSetOf<File>()
@@ -127,108 +127,131 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     }
 
     /**
-     * @throws RuntimeException
+     * @return HashSet<File> of files and folders that should be scanned for changes.
      */
-    private fun scanPhase1() {
-        val existing = db().fileEntityDao().getFileEntityCount()
-        if (existing > 0) {
-            return
-        }
-        val rootDir = ctx.getSharedPreferences(ctx.packageName, MODE_PRIVATE).getString("RootDirectory", "")!!
-        if (rootDir.isEmpty()) {
-            throw RuntimeException("No music root directory is set")
-        }
+    private fun scanPhase1(): HashSet<File> {
+        // FAST mode requires that at least the root music folder is inside the DB
 
-        val rootEntity = FileEntity.emptyOfFile(File(rootDir))
-        db().fileEntityDao().upsert(rootEntity)
-    }
-
-    private fun scanPhase2(): HashSet<File> {
-        val existingFolderEntities = db().fileEntityDao().getAllFiles(true)
-        val modifiedPaths = HashSet<File>()
-        existingFolderEntities.forEachWithProgress { existingFolderEntity ->
-            val existingFolder = File(existingFolderEntity.path)
-            if (!existingFolder.exists()) {
-                modifiedPaths.add(existingFolder)
-                return@forEachWithProgress
+        if (scanMode.value == MediaScanMode.CORRECT || db().fileEntityDao().getFileEntityCount() == 0) {
+            val rootDir = ctx.getSharedPreferences(ctx.packageName, MODE_PRIVATE).getString("RootDirectory", "")!!
+            if (rootDir.isEmpty()) {
+                Log.e("MediaScannerSingleton", "No music root directory is set!")
+                return hashSetOf()
             }
-            if (existingFolder.lastModified() == existingFolderEntity.lastModifiedMs) {
-                return@forEachWithProgress
+
+            return File(rootDir).listFilesRecursively().toHashSet()
+        } else if (scanMode.value == MediaScanMode.FAST) {
+            val existingFolderEntities = db().fileEntityDao().getAllFiles(true)
+            val modifiedPaths = HashSet<File>()
+            existingFolderEntities.forEachWithProgress { existingFolderEntity ->
+                val existingFolder = File(existingFolderEntity.path)
+                if (!existingFolder.exists()) {
+                    modifiedPaths.add(existingFolder)
+                    return@forEachWithProgress
+                }
+                if (existingFolder.lastModified() == existingFolderEntity.lastModifiedMs) {
+                    return@forEachWithProgress
+                }
+                val directChildren = existingFolder.listFilesRecursively().filter { !it.isHidden }
+                modifiedPaths.addAll(directChildren)
             }
-            val directChildren = existingFolder.listFilesRecursively().filter { !it.isHidden }
-            modifiedPaths.addAll(directChildren)
+
+            return modifiedPaths
         }
 
-        return modifiedPaths
+        throw RuntimeException("Unreachable code")
     }
 
     /**
-     * @param modifiedPathsSet A Set of files and folders that may or may not exist and may or may not be modified
+     * @param modifiedPathsSet A Set of files to scan. Folders are ignored.
+     * @return HashSet<File> of all files (no folders) whose metadata has changed.
      */
-    private fun scanPhase3(modifiedPathsSet: HashSet<File>) {
-        val allFileEntities = db().fileEntityDao().getAllFiles(false)
-        val entityMap = modifiedPathsSet.filter(File::isFile).associateWith { file ->
-            allFileEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.emptyOfFile(file)
-        }
+    private fun scanPhase2(modifiedPathsSet: HashSet<File>): HashSet<File> {
         val taglib = KTagLib()
-        entityMap.forEachWithProgress { f, entity ->
-            if (f.lastModified() == entity.lastModifiedMs && f.length() == entity.size) {
-                return@forEachWithProgress
-            }
-            entity.lastModifiedMs = f.lastModified()
-            entity.size = f.length()
+        val allFileEntities = db().fileEntityDao().getAllFiles(false)
+        val changedFileEntities = HashSet<FileEntity>()
+        val changedFiles = HashSet<File>()
 
-            val pfd = ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY)
-            val rawFd = pfd.detachFd()
-            val meta = try {
-                taglib.getMetadata(rawFd, f.name)
-            } finally {
-                pfd.close()
+        modifiedPathsSet
+            .filter(File::isFile)
+            .forEachWithProgress { f ->
+                val entity = allFileEntities.find { entity -> entity.path == f.absolutePath } ?: FileEntity.emptyOfFile(f)
+                if (f.lastModified() == entity.lastModifiedMs && f.length() == entity.size) {
+                    return@forEachWithProgress
+                }
+
+                entity.lastModifiedMs = f.lastModified()
+                entity.size = f.length()
+
+                val pfd = ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY)
+                val rawFd = pfd.detachFd()
+                val meta = try {
+                    taglib.getMetadata(rawFd, f.name)
+                } finally {
+                    pfd.close()
+                }
+
+                meta?.propertyMap?.let { entity.metadata = it }
+                meta?.audioProperties?.let {
+                    entity.channelCount = it.channelCount
+                    entity.bitrateKbps = it.bitrate
+                    entity.sampleRateHz = it.sampleRate
+                    entity.durationMs = it.duration
+                }
+
+                changedFileEntities.add(entity)
+                changedFiles.add(f)
             }
 
-            meta?.propertyMap?.let { entity.metadata = it }
-            meta?.audioProperties?.let {
-                entity.channelCount = it.channelCount
-                entity.bitrateKbps = it.bitrate
-                entity.sampleRateHz = it.sampleRate
-                entity.durationMs = it.duration
-            }
+        db().fileEntityDao().upsert(*changedFileEntities.toTypedArray())
+
+        return changedFiles
+    }
+
+    /**
+     * @param modifiedFiles A Set of files (not folders) that were modified.
+     */
+    private fun scanPhase3(modifiedFiles: HashSet<File>) {
+        val rootDirPath = ctx.getSharedPreferences(ctx.packageName, MODE_PRIVATE).getString("RootDirectory", "")!!
+        if (rootDirPath.isEmpty()) {
+            throw RuntimeException("No music root directory is set")
+        }
+        val rootDir = File(rootDirPath)
+
+        /** This contains all directories whose aggregate values have to be re-calculated */
+        val modifiedFolders = mutableSetOf<File>()
+        modifiedFiles.forEach {
+            modifiedFolders.addAll(it.allParents(rootDir))
         }
 
-        db().fileEntityDao().upsert(*entityMap.values.toTypedArray())
+        val modifiedFoldersEntities = mutableListOf<FileEntity>()
+
+        val allSongs = db().fileEntityDao().getAllFiles(false)
+        modifiedFolders.forEachWithProgress { modifiedFolder ->
+            val folderPathWithSlash = modifiedFolder.absolutePath + when (modifiedFolder.absolutePath.endsWith("/")) { false -> "/" true -> "" }
+            val entity = db().fileEntityDao().getFileByPath(modifiedFolder.absolutePath) ?: FileEntity.emptyOfFile(modifiedFolder)
+            val recursiveChildren = allSongs
+                .stream()
+                .filter { it.path.startsWith(folderPathWithSlash) }
+                .collect(Collectors.toList())
+
+            entity.apply {
+                lastModifiedMs = modifiedFolder.lastModified()
+                size = recursiveChildren.sumOf(FileEntity::size)
+                durationMs = recursiveChildren.sumOf(FileEntity::durationMs)
+                childCount = recursiveChildren.size
+            }
+
+            modifiedFoldersEntities.add(entity)
+        }
+
+        db().fileEntityDao().upsert(*modifiedFoldersEntities.toTypedArray())
     }
 
     /**
      * @param modifiedPathsSet A Set of files and folders that may or may not exist and may or may not be modified
      */
     private fun scanPhase4(modifiedPathsSet: HashSet<File>) {
-        val allEntities = db().fileEntityDao().getAllFiles()
-        val allFolderEntities = allEntities.stream().filter { it.isFolder }.collect(Collectors.toList())
-        val folderEntityMap = modifiedPathsSet.filter(File::isDirectory).associateWith { file ->
-            allFolderEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.emptyOfFile(file)
-        }
-
-        folderEntityMap.forEachWithProgress { folder, entity ->
-            val recursiveChildrenEntities = allEntities
-                .stream()
-                .filter { it.path.startsWith(folder.path) && !it.isFolder }
-                .collect(Collectors.toList())
-
-            entity.apply {
-                lastModifiedMs = folder.lastModified()
-                size = recursiveChildrenEntities.sumOf(FileEntity::size)
-                durationMs = recursiveChildrenEntities.sumOf(FileEntity::durationMs)
-                childCount = recursiveChildrenEntities.size
-            }
-        }
-
-        db().fileEntityDao().upsert(*folderEntityMap.values.toTypedArray())
-    }
-
-    /**
-     * @param modifiedPathsSet A Set of files and folders that may or may not exist and may or may not be modified
-     */
-    private fun scanPhase5(modifiedPathsSet: HashSet<File>) {
         // Deleted files won't shop up in modifiedPathsSet, but their folders!
         val modifiedFolders = modifiedPathsSet.filter { it.isDirectory }
 

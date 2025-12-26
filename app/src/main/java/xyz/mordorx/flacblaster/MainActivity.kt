@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -55,12 +56,14 @@ import java.io.File
 import androidx.core.net.toUri
 import androidx.core.content.edit
 import xyz.mordorx.flacblaster.fs.DatabaseSingleton
+import xyz.mordorx.flacblaster.fs.MediaScanMode
 
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        appSetup()
+        MediaScannerSingleton.get(this).scanAsync(MediaScanMode.CORRECT)
+        AppSetup(this).promptIfNeeded()
 
         enableEdgeToEdge()
         setContent {
@@ -70,43 +73,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * This prompts the user to allow MANAGE_EXTERNAL_STORAGE and to pick a music directory
-     */
-    private fun appSetup() {
-        if(!Environment.isExternalStorageManager()) {
-            val t = Toast.makeText(this, "This app won't work without full storage access.", Toast.LENGTH_LONG)
-            t.show()
-            val intent = Intent(
-                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                ("package:$packageName").toUri()
-            )
-            intent.addCategory(Intent.CATEGORY_DEFAULT)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-        }
-        val prefs = getSharedPreferences(packageName, MODE_PRIVATE)
-        if(prefs.getString("RootDirectory", "")!!.isEmpty()) {
-            Toast.makeText(this, "You must select a root directory where your music is stored", Toast.LENGTH_LONG).show()
-
-            val folderPicker = registerForActivityResult(
-                ActivityResultContracts.OpenDocumentTree()
-            ) { uri ->
-                uri?.let {
-                    val docId = DocumentsContract.getTreeDocumentId(uri)
-                    // Format: "primary:Music" or "XXXX-XXXX:Music" (SD card)
-                    val split = docId.split(":")
-
-                    val path = when (split[0]) {
-                        "primary" -> "/storage/emulated/0/${split.getOrElse(1) { "" }}"
-                        else -> "/storage/${split[0]}/${split.getOrElse(1) { "" }}"
-                    }
-                    Log.d("MainActivity", "User picked URI: $uri which is $path")
-                    prefs.edit {putString("RootDirectory", path)}
-                }
-            }
-            folderPicker.launch(null)
-        }
+    override fun onResume() {
+        super.onResume()
+        MediaScannerSingleton.get(this).scanAsync(MediaScanMode.FAST)
     }
 }
 
@@ -152,7 +121,7 @@ fun FileListScreen() {
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = isScanning,
-            onRefresh = { scanner.scanAsync() },
+            onRefresh = { scanner.scanAsync(MediaScanMode.CORRECT) },
             state = pullRefreshState,
             modifier = Modifier.padding(padding)
         ) {

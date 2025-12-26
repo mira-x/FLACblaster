@@ -55,22 +55,19 @@ For the scanning process, we differentiate three kinds of metadata:
 - M2: Easily calculatable metadata (recursive folder size in bytes, recursive folder children count)
 - M3: Parsable data, whose parsing is IO expensive (song metadata tags, song duration, recursive folder duration)
 
-#### Phase 1: Initial scan
-For the first scan, i.e. when the DB is empty, we add the root music folder to the DB, with last modified date set to 0 to force a re-scan via Phase 2
+There are two kinds of scanning: Fast and Correct. Fast scanning is performed when the app is resumed. Correct scanning is performed when the app is started or when the user manually triggers a re-scan. Fast scans don't notice when an existing file was modified in-place, but are faster and drain less battery. Correct scans notice all changes. Only one edge case is noticed by neither: An existing file's content was changed but it's modified date and size were not.
 
-#### Phase 2: Folder metadata comparison (Read-Only)
-We take a look at all folders in the DB. We look for ones with changed M1 metadata. If a folder or file was added, this will be reflected in a changed last-modified date by at least one existing folder.
+#### Phase 1: Finding files on disk
+In Correct mode, this recursively finds all files in the root directory.
+In Fast mode this finds all folders with changed M1 metadata.
+The found files are then passed on to Phase 2.
 
-We then look at the FS to read the fresh list of files in those folders and make a list of all files and folders that are modified or new (which of those two does not matter) and pass this list on to Phase 3.
+#### Phase 2 : Metadata for files
+This collects and updates all metadata (M1, M2, M3) for files. This is done only as needed, so files with existing M3 data that have no changed M1 data, will not be re-read.
+The files whose M3 data changed are passed to Phase 3.
 
-#### Phase 3 : Metadata for files
-This collects and updates all metadata (M1, M2, M3) for files.
+#### Phase 3: Metadata for folders
+This collects and updates all metadata (M1, M2, M3) for folders of changed files and their parent folders up to the root directory. This phase mainly performs aggregate functions like summing the total duration of a folder.
 
-#### Phase 4: Metadata for folders
-This collects and updates all metadata (M1, M2, M3) for folders. We do this after the files so that we can easily perform aggregate functions (like summing the total duration of a folder).
-
-#### Phase 5: Purge
-Delete all files from the DB that are not existent on the disk
-
-#### Note
-This scanning system does not notice when a file's contents are changed (M3) but its folder metadata (M1+M2) stays the same, for instance when an external song editor adds new M3 metadata tags. This is a TODO.
+#### Phase 4: Purge
+Delete all files from the DB that are not existent on the disk.
