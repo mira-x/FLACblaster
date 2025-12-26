@@ -7,7 +7,8 @@ import android.util.Log
 import com.simplecityapps.ktaglib.KTagLib
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
-import java.util.stream.Collectors
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.collections.forEachIndexed
 
 /**
@@ -42,7 +43,7 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
      * Don't run on UI thread! It *will* crash
      **/
     private fun scan() {
-        Log.d("MediaScannerSingleton", "Starting scan transaction...")
+        Log.d("MediaScannerSingleton", "Starting scan transaction in mode ${scanMode.value.name}...")
         scanStateProgress.value = 0f
         scanStateLabel.value = ""
         scanState.value = true
@@ -55,37 +56,29 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
                 return@runInTransaction
             }
 
-            Log.d("MediaScannerSingleton", "Starting scan phase 2...")
+            Log.d("MediaScannerSingleton", "Starting scan phase 2 in mode ${scanMode.value.name}...")
             scanStateLabel.value = "(2/4) Reading file metadata..."
             val updatedSongs = scanPhase2(filesAndFoldersToCheck)
 
-            Log.d("MediaScannerSingleton", "Starting scan phase 3...")
+            Log.d("MediaScannerSingleton", "Starting scan phase 3 in mode ${scanMode.value.name}...")
             scanStateLabel.value = "(3/4) Collecting folder metadata..."
             scanPhase3(updatedSongs)
 
-            Log.d("MediaScannerSingleton", "Starting scan phase 4...")
+            Log.d("MediaScannerSingleton", "Starting scan phase 4 in mode ${scanMode.value.name}...")
             scanStateLabel.value = "(4/4) Purging DB..."
             scanPhase4(filesAndFoldersToCheck)
         }
-        scanState.value = false
         scanStateLabel.value = ""
+        scanState.value = false
         Log.d("MediaScannerSingleton", "Committing scan transaction...")
     }
 
     /** Use this for progress bars */
-    fun <T> Collection<T>.forEachWithProgress(action: (T) -> Unit) {
-        forEachIndexed { index, item ->
-            action(item)
-            scanStateProgress.value = (index + 1f) / size
-        }
-    }
-
-    /** Use this for progress bars */
-    fun <K, V> Map<K, V>.forEachWithProgress(action: (K, V) -> Unit) {
-        var index = 0
-        forEach { (key, value) ->
-            action(key, value)
-            scanStateProgress.value = (++index).toFloat() / size
+    fun <T> Collection<T>.forEachWithProgressParallel(action: (T) -> Unit) {
+        val counter = AtomicInteger(0)
+        parallelStream().forEach {
+            action(it)
+            scanStateProgress.value = counter.incrementAndGet().toFloat() / size.toFloat()
         }
     }
 
@@ -101,10 +94,14 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
 
     /** Returns all parent directories up the specified root directory */
     fun File.allParents(rootDir: File): Set<File> {
-        val out = mutableSetOf(this)
-        if (this.parentFile != null && this.parentFile != rootDir) {
-            out.addAll(this.parentFile!!.allParents(rootDir))
+        val out = mutableSetOf<File>()
+
+        var current = this.parentFile
+        while (current != null && current != rootDir) {
+            out.add(current)
+            current = current.parentFile
         }
+
         return out
     }
 
@@ -142,21 +139,21 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
             return File(rootDir).listFilesRecursively().toHashSet()
         } else if (scanMode.value == MediaScanMode.FAST) {
             val existingFolderEntities = db().fileEntityDao().getAllFiles(true)
-            val modifiedPaths = HashSet<File>()
-            existingFolderEntities.forEachWithProgress { existingFolderEntity ->
+            val modifiedPaths = ConcurrentHashMap.newKeySet<File>()
+            existingFolderEntities.forEachWithProgressParallel { existingFolderEntity ->
                 val existingFolder = File(existingFolderEntity.path)
                 if (!existingFolder.exists()) {
                     modifiedPaths.add(existingFolder)
-                    return@forEachWithProgress
+                    return@forEachWithProgressParallel
                 }
                 if (existingFolder.lastModified() == existingFolderEntity.lastModifiedMs) {
-                    return@forEachWithProgress
+                    return@forEachWithProgressParallel
                 }
                 val directChildren = existingFolder.listFilesRecursively().filter { !it.isHidden }
                 modifiedPaths.addAll(directChildren)
             }
 
-            return modifiedPaths
+            return modifiedPaths.toHashSet()
         }
 
         throw RuntimeException("Unreachable code")
@@ -169,15 +166,15 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     private fun scanPhase2(modifiedPathsSet: HashSet<File>): HashSet<File> {
         val taglib = KTagLib()
         val allFileEntities = db().fileEntityDao().getAllFiles(false)
-        val changedFileEntities = HashSet<FileEntity>()
-        val changedFiles = HashSet<File>()
+        val changedFileEntities = ConcurrentHashMap.newKeySet<FileEntity>()
+        val changedFiles = ConcurrentHashMap.newKeySet<File>()
 
         modifiedPathsSet
             .filter(File::isFile)
-            .forEachWithProgress { f ->
+            .forEachWithProgressParallel { f ->
                 val entity = allFileEntities.find { entity -> entity.path == f.absolutePath } ?: FileEntity.emptyOfFile(f)
                 if (f.lastModified() == entity.lastModifiedMs && f.length() == entity.size) {
-                    return@forEachWithProgress
+                    return@forEachWithProgressParallel
                 }
 
                 entity.lastModifiedMs = f.lastModified()
@@ -205,7 +202,7 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
 
         db().fileEntityDao().upsert(*changedFileEntities.toTypedArray())
 
-        return changedFiles
+        return changedFiles.toHashSet()
     }
 
     /**
@@ -225,21 +222,37 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
         }
 
         val modifiedFoldersEntities = mutableListOf<FileEntity>()
+        val sortedSongs = db().fileEntityDao().getAllFiles(false).sortedBy { it.path }
 
-        val allSongs = db().fileEntityDao().getAllFiles(false)
-        modifiedFolders.forEachWithProgress { modifiedFolder ->
-            val folderPathWithSlash = modifiedFolder.absolutePath + when (modifiedFolder.absolutePath.endsWith("/")) { false -> "/" true -> "" }
+        modifiedFolders.forEachWithProgressParallel { modifiedFolder ->
+            val folderPathWithSlash = modifiedFolder.absolutePath +
+                    if (!modifiedFolder.absolutePath.endsWith("/")) "/" else ""
+
             val entity = db().fileEntityDao().getFileByPath(modifiedFolder.absolutePath) ?: FileEntity.emptyOfFile(modifiedFolder)
-            val recursiveChildren = allSongs
-                .stream()
-                .filter { it.path.startsWith(folderPathWithSlash) }
-                .collect(Collectors.toList())
+
+            val startIdx = sortedSongs.binarySearch {
+                it.path.compareTo(folderPathWithSlash)
+            }.let { if (it < 0) -(it + 1) else it }
+
+            var size = 0L
+            var duration = 0
+            var count = 0
+
+            // Aggregate size, duration and count until the folder changes
+            for (i in startIdx until sortedSongs.size) {
+                val song = sortedSongs[i]
+                if (!song.path.startsWith(folderPathWithSlash)) break
+
+                size += song.size
+                duration += song.durationMs
+                count++
+            }
 
             entity.apply {
                 lastModifiedMs = modifiedFolder.lastModified()
-                size = recursiveChildren.sumOf(FileEntity::size)
-                durationMs = recursiveChildren.sumOf(FileEntity::durationMs)
-                childCount = recursiveChildren.size
+                this.size = size
+                durationMs = duration
+                childCount = count
             }
 
             modifiedFoldersEntities.add(entity)
@@ -262,7 +275,7 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
 
         val deleted = mutableListOf<FileEntity>()
 
-        possiblyDeleted.toList().forEachWithProgress {
+        possiblyDeleted.toList().forEachWithProgressParallel {
             if (!File(it.path).exists()) {
                 deleted.add(it)
             }

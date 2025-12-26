@@ -62,7 +62,6 @@ import xyz.mordorx.flacblaster.fs.MediaScanMode
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        MediaScannerSingleton.get(this).scanAsync(MediaScanMode.CORRECT)
         AppSetup(this).promptIfNeeded()
 
         enableEdgeToEdge()
