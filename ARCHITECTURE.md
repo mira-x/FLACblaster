@@ -19,7 +19,7 @@ In greater detail, the goals for FLACblaster are:
 
 In the backend, we want to split music playing from the files as much as possible. The file explorer in the main screen of the app should only act as a file browser and manager (which moves, renames, deletes files). For this reason, the development timeline for this projects looks like this, in this order:
 
-- [ ] Add the songs database and a fully automatic file scanner
+- [x] Add the songs database and a fully automatic file scanner
 - [ ] Add a tree view for the songs
 - [ ] Add a music service
 - [ ] ... TODO: Further planning
@@ -58,8 +58,8 @@ For the scanning process, we differentiate three kinds of metadata:
 There are two kinds of scanning: Fast and Correct. Fast scanning is performed when the app is resumed. Correct scanning is performed when the app is started or when the user manually triggers a re-scan. Fast scans don't notice when an existing file was modified in-place, but are faster and drain less battery. Correct scans notice all changes. Only one edge case is noticed by neither: An existing file's content was changed but it's modified date and size were not.
 
 #### Phase 1: Finding files on disk
-In Correct mode, this recursively finds all files in the root directory.
-In Fast mode this finds all folders with changed M1 metadata.
+In Correct mode, this recursively finds all files in the root directory. The first scan is always in Correct mode.
+In Fast mode, this finds all files in folders with changed M1 metadata.
 The found files are then passed on to Phase 2.
 
 #### Phase 2 : Metadata for files
