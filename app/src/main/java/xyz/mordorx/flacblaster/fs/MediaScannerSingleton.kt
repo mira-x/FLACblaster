@@ -2,8 +2,12 @@ package xyz.mordorx.flacblaster.fs
 
 import android.content.Context
 import android.content.Context.MODE_PRIVATE
+import android.os.ParcelFileDescriptor
+import android.system.Os
 import android.util.Log
+import com.simplecityapps.ktaglib.KTagLib
 import kotlinx.coroutines.flow.MutableStateFlow
+import okio.sink
 import java.io.File
 import java.util.HashMap
 import java.util.stream.Collectors
@@ -135,15 +139,7 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
             throw RuntimeException("No music root directory is set")
         }
 
-        val rootEntity = FileEntity(
-            path = rootDir,
-            isFolder = true,
-            lastModifiedMs = 0,
-            size = 0,
-            childCount = 0,
-            durationMs = 0,
-            metadata = HashMap()
-        )
+        val rootEntity = FileEntity.emptyOfFile(File(rootDir))
         db().fileEntityDao().upsert(rootEntity)
     }
 
@@ -167,37 +163,49 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     }
 
     /**
-     * @param modifiedPathsSet A Set of files that may or may not exist and may or may not be modified
+     * @param modifiedPathsSet A Set of files and folders that may or may not exist and may or may not be modified
      */
     private fun scanPhase3(modifiedPathsSet: HashSet<File>) {
         val allFileEntities = db().fileEntityDao().getAllFiles(false)
-        val entityMap = modifiedPathsSet.associateWith { file ->
-            allFileEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.m1OfFile(file)
+        val entityMap = modifiedPathsSet.filter(File::isFile).associateWith { file ->
+            allFileEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.emptyOfFile(file)
         }
+        val taglib = KTagLib()
         entityMap.forEachWithProgress { f, entity ->
             if (f.lastModified() == entity.lastModifiedMs && f.length() == entity.size) {
                 return@forEachWithProgress
             }
+            entity.lastModifiedMs = f.lastModified()
+            entity.size = f.length()
 
-            entity.apply {
-                lastModifiedMs = f.lastModified()
-                size = f.length()
-                // TODO: Add M2 and M3 metadata
+            val pfd = ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY)
+            val rawFd = pfd.detachFd()
+            val meta = try {
+                taglib.getMetadata(rawFd, f.name)
+            } finally {
+                pfd.close()
             }
 
+            meta?.propertyMap?.let { entity.metadata = it }
+            meta?.audioProperties?.let {
+                entity.channelCount = it.channelCount
+                entity.bitrateKbps = it.bitrate
+                entity.sampleRateHz = it.sampleRate
+                entity.durationMs = it.duration
+            }
         }
 
         db().fileEntityDao().upsert(*entityMap.values.toTypedArray())
     }
 
     /**
-     * @param modifiedPathsSet A Set of files that may or may not exist and may or may not be modified
+     * @param modifiedPathsSet A Set of files and folders that may or may not exist and may or may not be modified
      */
     private fun scanPhase4(modifiedPathsSet: HashSet<File>) {
         val allEntities = db().fileEntityDao().getAllFiles()
         val allFolderEntities = allEntities.stream().filter { it.isFolder }.collect(Collectors.toList())
-        val folderEntityMap = modifiedPathsSet.associateWith { file ->
-            allFolderEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.m1OfFile(file)
+        val folderEntityMap = modifiedPathsSet.filter(File::isDirectory).associateWith { file ->
+            allFolderEntities.find { entity -> entity.path == file.absolutePath } ?: FileEntity.emptyOfFile(file)
         }
 
         folderEntityMap.forEachWithProgress { folder, entity ->
@@ -217,6 +225,9 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
         db().fileEntityDao().upsert(*folderEntityMap.values.toTypedArray())
     }
 
+    /**
+     * @param modifiedPathsSet A Set of files and folders that may or may not exist and may or may not be modified
+     */
     private fun scanPhase5(modifiedPathsSet: HashSet<File>) {
         // Deleted files won't shop up in modifiedPathsSet, but their folders!
         val modifiedFolders = modifiedPathsSet.filter { it.isDirectory }

@@ -1,7 +1,6 @@
 package xyz.mordorx.flacblaster
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.provider.DocumentsContract
@@ -55,6 +54,7 @@ import xyz.mordorx.flacblaster.ui.theme.FLACblasterTheme
 import java.io.File
 import androidx.core.net.toUri
 import androidx.core.content.edit
+import xyz.mordorx.flacblaster.fs.DatabaseSingleton
 
 
 class MainActivity : ComponentActivity() {
@@ -66,37 +66,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             FLACblasterTheme {
                 FileListScreen()
-
-                /*Scaffold(modifier = Modifier
-                    .fillMaxSize()
-                    //.systemBarsPadding()
-                    .windowInsetsTopHeight(WindowInsets.statusBars)
-                    .windowInsetsBottomHeight(WindowInsets.navigationBars)
-                ) { innerPadding ->
-                    //FileTree(f)
-                    Row {
-                        Button(onClick = {
-                            scannerService?.helloWorld();
-                        }) {
-                            Text("TRIGGER SCAN")
-                        }
-                        Button(onClick = {
-                            Thread {
-                                val dao = DatabaseSingleton.get(applicationContext).fileEntityDao()
-                                dao.delete(*dao.getAllFiles().toTypedArray())
-                                Log.d("MainActivity", "Deleted all files!")
-                            }.start()
-                        }) {
-                            Text("Clear DB!")
-                        }
-                    }
-                }*/
             }
         }
-    }
-
-    override fun onStop() {
-        super.onStop()
     }
 
     /**
@@ -104,8 +75,8 @@ class MainActivity : ComponentActivity() {
      */
     private fun appSetup() {
         if(!Environment.isExternalStorageManager()) {
-            val t = Toast.makeText(this, "This app won't work without full storage access.", Toast.LENGTH_LONG);
-            t.show();
+            val t = Toast.makeText(this, "This app won't work without full storage access.", Toast.LENGTH_LONG)
+            t.show()
             val intent = Intent(
                 Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                 ("package:$packageName").toUri()
@@ -116,7 +87,7 @@ class MainActivity : ComponentActivity() {
         }
         val prefs = getSharedPreferences(packageName, MODE_PRIVATE)
         if(prefs.getString("RootDirectory", "")!!.isEmpty()) {
-            Toast.makeText(this, "You must select a root directory where your music is stored", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "You must select a root directory where your music is stored", Toast.LENGTH_LONG).show()
 
             val folderPicker = registerForActivityResult(
                 ActivityResultContracts.OpenDocumentTree()
@@ -267,7 +238,7 @@ fun Leaf(label: String) {
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
-    val m = Modifier.fillMaxWidth()
+    Modifier.fillMaxWidth()
     Branch("OSes") {
         Branch("Unix") {
             Branch("Linux") {
