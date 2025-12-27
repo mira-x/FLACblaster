@@ -52,4 +52,9 @@ data class FileEntity(
             )
         }
     }
+
+    /** Returns the topmost value */
+    fun getName(): String {
+        return path.removeSuffix("/").split('/').last()
+    }
 }

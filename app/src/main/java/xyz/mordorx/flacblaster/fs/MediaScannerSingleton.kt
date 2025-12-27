@@ -51,22 +51,35 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
             Log.d("MediaScannerSingleton", "Starting scan phase 1 in mode ${scanMode.value.name}...")
             scanStateLabel.value = "(1/4) Looking for new files..."
             val filesAndFoldersToCheck = scanPhase1()
+            filesAndFoldersToCheck.forEach {
+                if (it.isDirectory)
+                Log.d("MediaScannerSingleton", "Phase 1 in mode ${scanMode.value.name} found folder ${it.absolutePath}")
+            }
 
             if(filesAndFoldersToCheck.isEmpty()) {
                 return@runInTransaction
             }
 
+            Log.d("MediaScannerSingleton", "1 Found rootDir: " + (db().fileEntityDao().getFileByPath("/storage/emulated/0/Music")?.getName() ?: "PRANK BRO"))
+
+
             Log.d("MediaScannerSingleton", "Starting scan phase 2 in mode ${scanMode.value.name}...")
             scanStateLabel.value = "(2/4) Reading file metadata..."
             val updatedSongs = scanPhase2(filesAndFoldersToCheck)
+
+            Log.d("MediaScannerSingleton", "2 Found rootDir: " + (db().fileEntityDao().getFileByPath("/storage/emulated/0/Music")?.getName() ?: "PRANK BRO"))
 
             Log.d("MediaScannerSingleton", "Starting scan phase 3 in mode ${scanMode.value.name}...")
             scanStateLabel.value = "(3/4) Collecting folder metadata..."
             scanPhase3(updatedSongs)
 
+            Log.d("MediaScannerSingleton", "3 Found rootDir: " + (db().fileEntityDao().getFileByPath("/storage/emulated/0/Music")?.getName() ?: "PRANK BRO"))
+
             Log.d("MediaScannerSingleton", "Starting scan phase 4 in mode ${scanMode.value.name}...")
             scanStateLabel.value = "(4/4) Purging DB..."
             scanPhase4(filesAndFoldersToCheck)
+
+            Log.d("MediaScannerSingleton", "4 Found rootDir: " + (db().fileEntityDao().getFileByPath("/storage/emulated/0/Music")?.getName() ?: "PRANK BRO"))
         }
         scanStateLabel.value = ""
         scanState.value = false
@@ -92,9 +105,9 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
         return audioExtensions.find { ext -> this.absolutePath.endsWith(ext, true) } != null
     }
 
-    /** Returns all parent directories up the specified root directory */
+    /** Returns all parent directories up to the specified root directory, including the root directory */
     fun File.allParents(rootDir: File): Set<File> {
-        val out = mutableSetOf<File>()
+        val out = mutableSetOf(rootDir)
 
         var current = this.parentFile
         while (current != null && current != rootDir) {

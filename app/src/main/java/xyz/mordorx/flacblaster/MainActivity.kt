@@ -1,6 +1,8 @@
 package xyz.mordorx.flacblaster
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.Environment
 import android.provider.DocumentsContract
@@ -8,6 +10,7 @@ import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
@@ -25,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
@@ -55,7 +59,9 @@ import xyz.mordorx.flacblaster.ui.theme.FLACblasterTheme
 import java.io.File
 import androidx.core.net.toUri
 import androidx.core.content.edit
+import androidx.preference.PreferenceManager
 import xyz.mordorx.flacblaster.fs.DatabaseSingleton
+import xyz.mordorx.flacblaster.fs.FileEntity
 import xyz.mordorx.flacblaster.fs.MediaScanMode
 
 
@@ -89,6 +95,19 @@ fun FileListScreen() {
 
     val pullRefreshState = rememberPullToRefreshState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val rootDirPath = ctx.getSharedPreferences(ctx.packageName, Context.MODE_PRIVATE).getString("RootDirectory", "")!!
+
+    val allFiles by DatabaseSingleton.get(ctx)
+        .fileEntityDao()
+        .getAllFilesFlow()
+        .collectAsState(initial = emptyList())
+
+    val rootDir = allFiles.find { it.path == rootDirPath }
+
+
+    //val rootDir by DatabaseSingleton.get(ctx).fileEntityDao().getFlowByPath(rootDirPath).collectAsState(initial = null)
+    Log.i("MainActivity", "rootDirPath is $rootDirPath, rootDir is $rootDir")
 
     LaunchedEffect(isScanning) {
         if (isScanning) {
@@ -125,11 +144,9 @@ fun FileListScreen() {
             modifier = Modifier.padding(padding)
         ) {
             LazyColumn(Modifier.fillMaxSize()) {
+                // Tree items
                 item {
-                    Text("Welcome to FLACblaster!")
-                }
-                item {
-                    Text("Swipe down to re-scan your music library!")
+                    rootDir?.let { FolderViewTree(it) }
                 }
             }
         }
@@ -137,104 +154,45 @@ fun FileListScreen() {
 }
 
 @Composable
-fun FileTree(f: File) {
-    if(f.isFile) {
-        Leaf(f.name)
-    } else if (f.isDirectory) {
-        Branch(f.name) {
-            f.listFiles()?.forEach { sub ->
-                FileTree(sub)
-            }
-        }
-    }
+fun TextPadding(level: Int) {
+    Text("    ".repeat(level))
 }
 
 @Composable
-fun TreeColumn(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Column(modifier
-        .fillMaxWidth()
-        .drawBehind {
-            val strokeWidth = 1f
-            val y = size.height - strokeWidth / 2
+fun FolderViewTree(folder: FileEntity, level: Int = 0) {
+    val db = DatabaseSingleton.get(LocalContext.current).fileEntityDao()
+    val children by db.getDirectChildren(folder.path).collectAsState(initial = null)
 
-            drawLine(
-                ActiveColorScheme.onBackground,
-                Offset(0f, y),
-                Offset(size.width, y),
-                strokeWidth
-            )
-        }) {
-        content()
-    }
-}
+    var isExpanded by remember { mutableStateOf(false) }
 
-@Composable
-fun Branch(label: String, content: @Composable () -> Unit) {
-    var open by remember { mutableStateOf(true) }
-    TreeColumn {
-        TreeColumn (Modifier
+    Row(
+        modifier = Modifier
             .fillMaxWidth()
-            .clickable(true, onClick = { open = !open })
-            .background(ActiveColorScheme.primary)) {
-            Row {
-                Text(label, color = ActiveColorScheme.onPrimary)
-                Spacer(Modifier.weight(1f))
-                Text(if (open) "v" else "<", color = ActiveColorScheme.onPrimary)
-            }
-        }
-        var m = Modifier
-            .fillMaxWidth()
-            .width(1000.dp)
-            .padding(start = 10.dp)
-        if (!open) { m = m
-            .size(0.dp)
-            .alpha(1f) }
-        TreeColumn(m) {
-            content()
-        }
+            .clickable { isExpanded = !isExpanded }
+            .padding(4.dp)
+    ) {
+        TextPadding(level)
+        Text(if (isExpanded) "📂" else "📁")
+        Spacer(Modifier.width(8.dp))
+        Text(folder.getName())
     }
-}
 
-@Composable
-fun Leaf(label: String) {
-    Column(Modifier
-        .fillMaxWidth()
-        .background(ActiveColorScheme.secondary)) {
-        Text(label, color = ActiveColorScheme.onSecondary)
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Modifier.fillMaxWidth()
-    Branch("OSes") {
-        Branch("Unix") {
-            Branch("Linux") {
-                Leaf("Android")
-                Leaf("Linux")
-                Leaf("WSL")
-            }
-            Branch("BSD") {
-                Leaf("NetBSD")
-                Leaf("MacOS X")
-                Leaf("FreeBSD")
-            }
-        }
-        Branch("DOS") {
-            Branch("Windows") {
-                Branch("Windows NT") {
-                    Leaf("Win11")
-                    Leaf("Win10")
+    // Kinder wenn expanded
+    if (isExpanded) {
+        children?.forEach { child ->
+            if (child.isFolder) {
+                FolderViewTree(child, level + 1)
+            } else {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                ) {
+                    TextPadding(level + 1)
+                    Text("🎵")
+                    Spacer(Modifier.width(8.dp))
+                    Text(child.getName())
                 }
             }
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    FLACblasterTheme {
-        Greeting("Android")
     }
 }
