@@ -2,11 +2,16 @@ package xyz.mordorx.flacblaster.fs
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 import java.io.File
 
-@Entity(tableName = "files")
+@Entity(tableName = "files", indices = [
+    Index(value=["path"]),
+    Index(value=["isFolder"]),
+    Index(value=["isFolder", "path"]),
+])
 @TypeConverters(Converters::class)
 data class FileEntity(
     /** M1 for files and folders. This is absolute. */
@@ -56,5 +61,17 @@ data class FileEntity(
     /** Returns the topmost value */
     fun getName(): String {
         return path.removeSuffix("/").split('/').last()
+    }
+
+    fun isChildOf(parentFolder: FileEntity): Boolean {
+        if (!path.startsWith(parentFolder.path)) {
+            return false
+        }
+        val pathWithout = path.removePrefix(parentFolder.path + "/")
+        if (pathWithout.count{it == '/'} > 0) {
+            return false
+        } else {
+            return true
+        }
     }
 }

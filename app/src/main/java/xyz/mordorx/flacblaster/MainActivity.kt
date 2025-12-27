@@ -1,21 +1,11 @@
 package xyz.mordorx.flacblaster
 
 import android.content.Context
-import android.content.Intent
-import android.content.SharedPreferences
 import android.os.Bundle
-import android.os.Environment
-import android.provider.DocumentsContract
-import android.provider.Settings
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,11 +14,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
@@ -47,23 +35,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import xyz.mordorx.flacblaster.fs.MediaScannerSingleton
-import xyz.mordorx.flacblaster.ui.theme.ActiveColorScheme
-import xyz.mordorx.flacblaster.ui.theme.FLACblasterTheme
-import java.io.File
-import androidx.core.net.toUri
-import androidx.core.content.edit
-import androidx.preference.PreferenceManager
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.flow.filter
 import xyz.mordorx.flacblaster.fs.DatabaseSingleton
 import xyz.mordorx.flacblaster.fs.FileEntity
 import xyz.mordorx.flacblaster.fs.MediaScanMode
-
+import xyz.mordorx.flacblaster.fs.MediaScannerSingleton
+import xyz.mordorx.flacblaster.ui.ExplorerViewModel
+import xyz.mordorx.flacblaster.ui.ExplorerViewModelFactory
+import xyz.mordorx.flacblaster.ui.theme.FLACblasterTheme
+import java.io.File
+import kotlin.math.exp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,7 +71,9 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileListScreen() {
+fun FileListScreen(
+    model: ExplorerViewModel = viewModel(factory = ExplorerViewModelFactory(dao = DatabaseSingleton.get(LocalContext.current).fileEntityDao()))
+) {
     val ctx = LocalContext.current
     val scanner = remember { MediaScannerSingleton.get(ctx) }
     val isScanning by scanner.scanState.collectAsState()
@@ -104,7 +91,6 @@ fun FileListScreen() {
         .collectAsState(initial = emptyList())
 
     val rootDir = allFiles.find { it.path == rootDirPath }
-
 
     //val rootDir by DatabaseSingleton.get(ctx).fileEntityDao().getFlowByPath(rootDirPath).collectAsState(initial = null)
     Log.i("MainActivity", "rootDirPath is $rootDirPath, rootDir is $rootDir")
@@ -146,7 +132,7 @@ fun FileListScreen() {
             LazyColumn(Modifier.fillMaxSize()) {
                 // Tree items
                 item {
-                    rootDir?.let { FolderViewTree(it) }
+                    rootDir?.let { FolderViewTree(folder = it, model = model) }
                 }
             }
         }
@@ -155,21 +141,22 @@ fun FileListScreen() {
 
 @Composable
 fun TextPadding(level: Int) {
-    Text("    ".repeat(level))
+    Text("  ".repeat(level))
 }
 
 @Composable
-fun FolderViewTree(folder: FileEntity, level: Int = 0) {
-    val db = DatabaseSingleton.get(LocalContext.current).fileEntityDao()
-    val children by db.getDirectChildren(folder.path).collectAsState(initial = null)
-
-    var isExpanded by remember { mutableStateOf(false) }
+fun FolderViewTree(
+    folder: FileEntity,
+    level: Int = 0,
+    model: ExplorerViewModel
+    ) {
+    val expandedFolders by model.expandedFolders.collectAsState()
+    val isExpanded = folder.path in expandedFolders
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { isExpanded = !isExpanded }
-            .padding(4.dp)
+            .clickable { model.toggleFolder(folder.path) }
     ) {
         TextPadding(level)
         Text(if (isExpanded) "📂" else "📁")
@@ -177,11 +164,12 @@ fun FolderViewTree(folder: FileEntity, level: Int = 0) {
         Text(folder.getName())
     }
 
-    // Kinder wenn expanded
     if (isExpanded) {
-        children?.forEach { child ->
-            if (child.isFolder) {
-                FolderViewTree(child, level + 1)
+        val children by model.getChildrenCached(folder.path).collectAsState()
+
+        children.forEach {
+            if (it.isFolder) {
+                FolderViewTree(it, level + 1, model)
             } else {
                 Row(
                     Modifier
@@ -190,7 +178,7 @@ fun FolderViewTree(folder: FileEntity, level: Int = 0) {
                     TextPadding(level + 1)
                     Text("🎵")
                     Spacer(Modifier.width(8.dp))
-                    Text(child.getName())
+                    Text(it.getName())
                 }
             }
         }

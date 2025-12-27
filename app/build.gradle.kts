@@ -80,4 +80,12 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
 
+    val lifecycle_version = "2.10.0"
+    val arch_version = "2.2.0"
+    // ViewModel
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:${lifecycle_version}")
+    // ViewModel utilities for Compose
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:${lifecycle_version}")
+    // LiveData
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:${lifecycle_version}")
 }

@@ -36,6 +36,6 @@ interface FileEntityDao {
     @Delete
     fun delete(vararg files: FileEntity)
 
-    @Query("SELECT * FROM files ORDER BY path DESC")
+    @Query("SELECT * FROM files ORDER BY isFolder DESC, path ASC")
     fun getAllFilesFlow(): Flow<List<FileEntity>>
 }
