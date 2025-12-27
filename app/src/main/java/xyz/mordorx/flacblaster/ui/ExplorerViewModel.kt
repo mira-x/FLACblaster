@@ -20,7 +20,7 @@ import xyz.mordorx.flacblaster.fs.FileEntityDao
 
 class ExplorerViewModel(private val dao: FileEntityDao, rootPath: String) : ViewModel() {
     // This is our internal variable for writing
-    private val expandedFoldersMut = MutableStateFlow<Set<String>>(emptySet())
+    private val expandedFoldersMut = MutableStateFlow<Set<String>>(mutableSetOf(rootPath))
     // This is the exported read-only variable
     val expandedFolders: StateFlow<Set<String>> = expandedFoldersMut.asStateFlow()
 
@@ -34,33 +34,6 @@ class ExplorerViewModel(private val dao: FileEntityDao, rootPath: String) : View
         expandedFoldersMut.update { current ->
             if (path in current) current - path
             else current + path
-        }
-    }
-
-    fun setRootPath(path: String) {
-        rootPathFlow.value = path
-    }
-
-
-    private val childrenCache = mutableMapOf<String, StateFlow<List<FileEntity>>>()
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun getChildrenCached(folderPath: String): StateFlow<List<FileEntity>> {
-        // If the folder row changes (e.g. last modified date) we re-query this folder's children
-        return childrenCache.getOrPut(folderPath) {
-            dao.getFlowByPath(folderPath)
-                .flatMapLatest { folder ->
-                    if (folder == null) {
-                        flowOf(emptyList())
-                    } else {
-                        dao.getDirectChildren(folderPath)
-                    }
-                }
-                .stateIn(
-                    viewModelScope,
-                    SharingStarted.Lazily,
-                    emptyList()
-                )
         }
     }
 

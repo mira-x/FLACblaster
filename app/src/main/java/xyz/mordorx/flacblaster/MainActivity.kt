@@ -2,12 +2,15 @@ package xyz.mordorx.flacblaster
 
 import android.content.Context
 import android.os.Bundle
+import android.os.CountDownTimer
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -35,12 +38,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.HorizontalAlignmentLine
+import androidx.compose.ui.layout.ModifierLocalBeyondBoundsLayout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow
 import xyz.mordorx.flacblaster.fs.DatabaseSingleton
 import xyz.mordorx.flacblaster.fs.FileEntity
 import xyz.mordorx.flacblaster.fs.MediaScanMode
@@ -67,6 +77,20 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         MediaScannerSingleton.get(this).scanAsync(MediaScanMode.FAST)
+    }
+}
+
+/**
+ * @author https://stackoverflow.com/a/70020301
+ */
+private fun countDownFlow(
+    start: Long,
+    delayInSeconds: Long = 1_000L,
+) = flow {
+    var count = start
+    while (count >= 0L) {
+        emit(count--)
+        delay(delayInSeconds)
     }
 }
 
@@ -136,11 +160,6 @@ fun FileListScreen() {
 }
 
 @Composable
-fun TextPadding(level: Int) {
-    Text("  ".repeat(level))
-}
-
-@Composable
 fun TreeItemRow(
     treeItem: ExplorerViewModel.TreeItem,
     model: ExplorerViewModel
@@ -156,15 +175,23 @@ fun TreeItemRow(
                 if (file.isFolder) {
                     model.toggleFolder(file.path)
                 }
-            }
+            },
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        TextPadding(level)
-        if (file.isFolder) {
-            Text(if (isExpanded) "📂" else "📁")
-        } else {
-            Text("🎵")
-        }
+        val emoji = if (file.isFolder) (if (isExpanded) "📂" else "📁") else ""
+        val padding = "  ".repeat(level)
+        Text(
+            text = padding + emoji + " " + file.getName(),
+            modifier = Modifier.weight(1f, fill = false),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
         Spacer(Modifier.width(8.dp))
-        Text(file.getName())
+
+        Text(
+            text = file.durationString() + " ",
+            modifier = Modifier.alignByBaseline()
+        )
     }
 }

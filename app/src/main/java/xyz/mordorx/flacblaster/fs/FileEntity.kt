@@ -63,6 +63,27 @@ data class FileEntity(
         return path.removeSuffix("/").split('/').last()
     }
 
+    /** Returns a string in the format D:HH:MM:SS, leaving out the Days and Hours fields if possible */
+    fun durationString(): String {
+        val secMs = 1000
+        val minuteMs = secMs * 60
+        val hourMs = minuteMs * 60
+        val dayMs = hourMs * 24
+
+        val secPart = (durationMs % minuteMs) / secMs
+        val minutePart = (durationMs % hourMs) / minuteMs
+        val hourPart = (durationMs % dayMs) / hourMs
+        val dayPart = durationMs / dayMs
+
+        var out = ""
+        if (dayPart > 0) out += "$dayPart:"
+        if (hourPart > 0) out += "$hourPart".padStart(if (dayPart > 0) 2 else 1, '0') + ":"
+        out += minutePart.toString().padStart(2, '0')
+        out += ":"
+        out += secPart.toString().padStart(2, '0')
+        return out
+    }
+
     fun isChildOf(parentFolder: FileEntity): Boolean {
         if (!path.startsWith(parentFolder.path)) {
             return false

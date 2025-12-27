@@ -140,8 +140,7 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
      * @return HashSet<File> of files and folders that should be scanned for changes.
      */
     private fun scanPhase1(): HashSet<File> {
-        // FAST mode requires that at least the root music folder is inside the DB
-
+        // FAST mode requires that at least the root music folder is inside the DB. Thus the first scan must be in CORRECT mode.
         if (scanMode.value == MediaScanMode.CORRECT || db().fileEntityDao().getFileEntityCount() == 0) {
             val rootDir = ctx.getSharedPreferences(ctx.packageName, MODE_PRIVATE).getString("RootDirectory", "")!!
             if (rootDir.isEmpty()) {

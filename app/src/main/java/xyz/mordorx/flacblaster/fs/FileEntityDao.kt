@@ -33,6 +33,9 @@ interface FileEntityDao {
     @Query("SELECT COUNT(*) FROM files")
     fun getFileEntityCount(): Int
 
+    @Query("SELECT COUNT(*) FROM files")
+    fun getFileEntityCountFlow(): Flow<Int>
+
     @Delete
     fun delete(vararg files: FileEntity)
 
