@@ -20,7 +20,7 @@ In greater detail, the goals for FLACblaster are:
 In the backend, we want to split music playing from the files as much as possible. The file explorer in the main screen of the app should only act as a file browser and manager (which moves, renames, deletes files). For this reason, the development timeline for this projects looks like this, in this order:
 
 - [x] Add the songs database and a fully automatic file scanner
-- [ ] Add a tree view for the songs
+- [x] Add a tree view for the songs
 - [ ] Add a music service
 - [ ] ... TODO: Further planning
 
