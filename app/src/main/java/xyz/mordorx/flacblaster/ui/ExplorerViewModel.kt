@@ -18,11 +18,13 @@ import kotlinx.coroutines.flow.update
 import xyz.mordorx.flacblaster.fs.FileEntity
 import xyz.mordorx.flacblaster.fs.FileEntityDao
 
-class ExplorerViewModel(private val dao: FileEntityDao) : ViewModel() {
+class ExplorerViewModel(private val dao: FileEntityDao, rootPath: String) : ViewModel() {
     // This is our internal variable for writing
     private val expandedFoldersMut = MutableStateFlow<Set<String>>(emptySet())
     // This is the exported read-only variable
     val expandedFolders: StateFlow<Set<String>> = expandedFoldersMut.asStateFlow()
+
+    private val rootPathFlow = MutableStateFlow(rootPath)
 
     val allFiles: StateFlow<List<FileEntity>> = dao
         .getAllFilesFlow()
@@ -33,6 +35,10 @@ class ExplorerViewModel(private val dao: FileEntityDao) : ViewModel() {
             if (path in current) current - path
             else current + path
         }
+    }
+
+    fun setRootPath(path: String) {
+        rootPathFlow.value = path
     }
 
 
@@ -57,5 +63,59 @@ class ExplorerViewModel(private val dao: FileEntityDao) : ViewModel() {
                 )
         }
     }
+
+    data class TreeItem(
+        val file: FileEntity,
+        val level: Int,
+        val isExpanded: Boolean
+    )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val flattenedTree: StateFlow<List<TreeItem>> = rootPathFlow
+        .flatMapLatest { rootPath ->
+            expandedFolders.flatMapLatest { expanded ->
+                allFiles.transform { files ->
+                    // Build a map for quick parent-child lookup
+                    val childrenMap = files.groupBy { file ->
+                        file.path.substringBeforeLast('/', "")
+                    }
+
+                    val result = mutableListOf<TreeItem>()
+
+                    fun addItemsRecursively(parentPath: String, level: Int) {
+                        val children = childrenMap[parentPath]?.sortedWith(
+                            compareBy<FileEntity> { !it.isFolder }
+                                .thenBy { it.path }
+                        ) ?: emptyList()
+
+                        for (child in children) {
+                            val isExpanded = child.path in expanded
+                            result.add(TreeItem(child, level, isExpanded))
+
+                            if (child.isFolder && isExpanded) {
+                                addItemsRecursively(child.path, level + 1)
+                            }
+                        }
+                    }
+
+                    // Start from root
+                    val actualRoot = files.find { it.path == rootPath }
+                    if (actualRoot != null) {
+                        val isExpanded = actualRoot.path in expanded
+                        result.add(TreeItem(actualRoot, 0, isExpanded))
+                        if (isExpanded) {
+                            addItemsRecursively(actualRoot.path, 1)
+                        }
+                    }
+
+                    emit(result)
+                }
+            }
+        }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Lazily,
+            emptyList()
+        )
 
 }

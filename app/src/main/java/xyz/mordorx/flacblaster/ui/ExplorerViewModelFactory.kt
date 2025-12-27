@@ -6,12 +6,13 @@ import xyz.mordorx.flacblaster.fs.FileEntityDao
 
 /** This class is necessary because we do not instantiate our ExplorerViewModel ourselves, but Android has to do it for us */
 class ExplorerViewModelFactory(
-    private val dao: FileEntityDao
+    private val dao: FileEntityDao,
+    private val rootPath: String
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ExplorerViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ExplorerViewModel(dao) as T
+            return ExplorerViewModel(dao, rootPath) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

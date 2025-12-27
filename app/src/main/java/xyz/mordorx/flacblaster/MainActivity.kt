@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
@@ -71,10 +72,17 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileListScreen(
-    model: ExplorerViewModel = viewModel(factory = ExplorerViewModelFactory(dao = DatabaseSingleton.get(LocalContext.current).fileEntityDao()))
-) {
+fun FileListScreen() {
     val ctx = LocalContext.current
+    val rootDirPath = ctx.getSharedPreferences(ctx.packageName, Context.MODE_PRIVATE).getString("RootDirectory", "")!!
+
+    val model: ExplorerViewModel = viewModel(
+        factory = ExplorerViewModelFactory(
+            dao = DatabaseSingleton.get(ctx).fileEntityDao(),
+            rootPath = rootDirPath
+        )
+    )
+
     val scanner = remember { MediaScannerSingleton.get(ctx) }
     val isScanning by scanner.scanState.collectAsState()
     val progress by scanner.scanStateProgress.collectAsState()
@@ -82,18 +90,6 @@ fun FileListScreen(
 
     val pullRefreshState = rememberPullToRefreshState()
     val snackbarHostState = remember { SnackbarHostState() }
-
-    val rootDirPath = ctx.getSharedPreferences(ctx.packageName, Context.MODE_PRIVATE).getString("RootDirectory", "")!!
-
-    val allFiles by DatabaseSingleton.get(ctx)
-        .fileEntityDao()
-        .getAllFilesFlow()
-        .collectAsState(initial = emptyList())
-
-    val rootDir = allFiles.find { it.path == rootDirPath }
-
-    //val rootDir by DatabaseSingleton.get(ctx).fileEntityDao().getFlowByPath(rootDirPath).collectAsState(initial = null)
-    Log.i("MainActivity", "rootDirPath is $rootDirPath, rootDir is $rootDir")
 
     LaunchedEffect(isScanning) {
         if (isScanning) {
@@ -129,10 +125,10 @@ fun FileListScreen(
             state = pullRefreshState,
             modifier = Modifier.padding(padding)
         ) {
+            val treeItems by model.flattenedTree.collectAsState()
             LazyColumn(Modifier.fillMaxSize()) {
-                // Tree items
-                item {
-                    rootDir?.let { FolderViewTree(folder = it, model = model) }
+                items(treeItems, key = { it.file.path }) { treeItem ->
+                    TreeItemRow(treeItem = treeItem, model = model)
                 }
             }
         }
@@ -145,42 +141,30 @@ fun TextPadding(level: Int) {
 }
 
 @Composable
-fun FolderViewTree(
-    folder: FileEntity,
-    level: Int = 0,
+fun TreeItemRow(
+    treeItem: ExplorerViewModel.TreeItem,
     model: ExplorerViewModel
-    ) {
-    val expandedFolders by model.expandedFolders.collectAsState()
-    val isExpanded = folder.path in expandedFolders
+) {
+    val file = treeItem.file
+    val level = treeItem.level
+    val isExpanded = treeItem.isExpanded
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { model.toggleFolder(folder.path) }
-    ) {
-        TextPadding(level)
-        Text(if (isExpanded) "📂" else "📁")
-        Spacer(Modifier.width(8.dp))
-        Text(folder.getName())
-    }
-
-    if (isExpanded) {
-        val children by model.getChildrenCached(folder.path).collectAsState()
-
-        children.forEach {
-            if (it.isFolder) {
-                FolderViewTree(it, level + 1, model)
-            } else {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                ) {
-                    TextPadding(level + 1)
-                    Text("🎵")
-                    Spacer(Modifier.width(8.dp))
-                    Text(it.getName())
+            .clickable {
+                if (file.isFolder) {
+                    model.toggleFolder(file.path)
                 }
             }
+    ) {
+        TextPadding(level)
+        if (file.isFolder) {
+            Text(if (isExpanded) "📂" else "📁")
+        } else {
+            Text("🎵")
         }
+        Spacer(Modifier.width(8.dp))
+        Text(file.getName())
     }
 }
