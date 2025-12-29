@@ -10,13 +10,13 @@ plugins {
 }
 
 android {
-    namespace = "xyz.mordorx.flacblaster"
+    namespace = "eu.mordorx.flacblaster"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "xyz.mordorx.flacblaster"
+        applicationId = "eu.mordorx.flacblaster"
         minSdk = 30
         targetSdk = 36
         versionCode = 1
