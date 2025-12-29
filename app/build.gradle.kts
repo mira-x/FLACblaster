@@ -61,6 +61,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.material)
+    implementation(libs.androidx.media3.exoplayer)
     //implementation("androidx.compose.material:material-icons-extended:1.7.7")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -1,0 +1,57 @@
+package xyz.mordorx.flacblaster
+
+import android.app.Service
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.Binder
+import android.os.IBinder
+import android.util.Log
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.launchIn
+
+abstract class SuperService : Service() {
+    companion object {
+
+        public inline fun <reified T: SuperService>instantiate(ctx: Context): StateFlow<T?> {
+            Log.d("SuperService", "instantiate called for ${T::class.java.simpleName}")
+            val f = MutableStateFlow<T?>(null)
+
+            val conn = object : ServiceConnection {
+                override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                    Log.d("SuperService", "onServiceConnected: $name, binder: $binder")
+                    @Suppress("UNCHECKED_CAST")
+                    val service = (binder as SuperServiceBinder).service as T
+                    Log.d("SuperService", "Emitting service: $service")
+                    f.value = service
+                }
+
+                override fun onServiceDisconnected(name: ComponentName?) {
+                    Log.d("SuperService", "onServiceDisconnected: $name")
+                    f.value = null
+                    ctx.unbindService(this)
+                }
+            }
+
+            val intent = Intent(ctx, T::class.java)
+            Log.d("SuperService", "Binding service with intent: $intent")
+            val bindResult = ctx.bindService(intent, conn, Context.BIND_AUTO_CREATE)
+            Log.d("SuperService", "bindService result: $bindResult")
+
+            return f
+        }
+    }
+    inner class SuperServiceBinder : Binder() {
+        val service: SuperService
+            get() = this@SuperService
+    }
+    val binder = SuperServiceBinder()
+    override fun onBind(intent: Intent?): IBinder? {
+        return binder
+    }
+}

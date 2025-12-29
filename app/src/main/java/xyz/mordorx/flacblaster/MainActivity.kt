@@ -2,15 +2,13 @@ package xyz.mordorx.flacblaster
 
 import android.content.Context
 import android.os.Bundle
-import android.os.CountDownTimer
-import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -35,31 +33,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.HorizontalAlignmentLine
-import androidx.compose.ui.layout.ModifierLocalBeyondBoundsLayout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
+import xyz.mordorx.flacblaster.SuperService.Companion.instantiate
 import xyz.mordorx.flacblaster.fs.DatabaseSingleton
-import xyz.mordorx.flacblaster.fs.FileEntity
 import xyz.mordorx.flacblaster.fs.MediaScanMode
 import xyz.mordorx.flacblaster.fs.MediaScannerSingleton
 import xyz.mordorx.flacblaster.ui.ExplorerViewModel
-import xyz.mordorx.flacblaster.ui.ExplorerViewModelFactory
+import xyz.mordorx.flacblaster.ui.AutoViewModelFactory
+import xyz.mordorx.flacblaster.ui.MusicPlayerViewModel
+import xyz.mordorx.flacblaster.ui.superViewModel
 import xyz.mordorx.flacblaster.ui.theme.FLACblasterTheme
-import java.io.File
-import kotlin.math.exp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,12 +90,12 @@ fun FileListScreen() {
     val ctx = LocalContext.current
     val rootDirPath = ctx.getSharedPreferences(ctx.packageName, Context.MODE_PRIVATE).getString("RootDirectory", "")!!
 
-    val model: ExplorerViewModel = viewModel(
-        factory = ExplorerViewModelFactory(
+    val model = superViewModel {
+        ExplorerViewModel(
             dao = DatabaseSingleton.get(ctx).fileEntityDao(),
             rootPath = rootDirPath
         )
-    )
+    }
 
     val scanner = remember { MediaScannerSingleton.get(ctx) }
     val isScanning by scanner.scanState.collectAsState()
@@ -114,6 +104,8 @@ fun FileListScreen() {
 
     val pullRefreshState = rememberPullToRefreshState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val player = superViewModel { MusicPlayerViewModel(ctx) }
 
     LaunchedEffect(isScanning) {
         if (isScanning) {
@@ -151,6 +143,10 @@ fun FileListScreen() {
         ) {
             val treeItems by model.flattenedTree.collectAsState()
             LazyColumn(Modifier.fillMaxSize()) {
+                item() {
+                    val svc by player.svcFlow.collectAsState(initial = null)
+                    Text("Player state: ${svc != null}")
+                }
                 items(treeItems, key = { it.file.path }) { treeItem ->
                     TreeItemRow(treeItem = treeItem, model = model)
                 }
