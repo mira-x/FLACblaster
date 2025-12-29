@@ -1,4 +1,4 @@
-package xyz.mordorx.flacblaster
+package xyz.mordorx.flacblaster.superutil
 
 import android.app.Service
 import android.content.ComponentName
@@ -8,17 +8,20 @@ import android.content.ServiceConnection
 import android.os.Binder
 import android.os.IBinder
 import android.util.Log
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.launchIn
 
+/**
+ * This is a helper class that you can inherit your services from. It provides helpful utils for
+ * instantiating the service and saves you from boilerplate code. Use the instantiate() function to
+ * receive a flow containing the service (or null if not ready yet or after it crashed)
+ */
 abstract class SuperService : Service() {
     companion object {
-
-        public inline fun <reified T: SuperService>instantiate(ctx: Context): StateFlow<T?> {
+        /**
+         * Create a binding to the service T and return its service object through a flow.
+         */
+        inline fun <reified T: SuperService>instantiate(ctx: Context): StateFlow<T?> {
             Log.d("SuperService", "instantiate called for ${T::class.java.simpleName}")
             val f = MutableStateFlow<T?>(null)
 
@@ -40,12 +43,13 @@ abstract class SuperService : Service() {
 
             val intent = Intent(ctx, T::class.java)
             Log.d("SuperService", "Binding service with intent: $intent")
-            val bindResult = ctx.bindService(intent, conn, Context.BIND_AUTO_CREATE)
+            val bindResult = ctx.bindService(intent, conn, BIND_AUTO_CREATE)
             Log.d("SuperService", "bindService result: $bindResult")
 
             return f
         }
     }
+
     inner class SuperServiceBinder : Binder() {
         val service: SuperService
             get() = this@SuperService

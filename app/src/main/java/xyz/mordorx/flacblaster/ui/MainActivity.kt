@@ -1,9 +1,8 @@
-package xyz.mordorx.flacblaster
+package xyz.mordorx.flacblaster.ui
 
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
@@ -38,17 +37,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
-import xyz.mordorx.flacblaster.SuperService.Companion.instantiate
+import xyz.mordorx.flacblaster.ui.AppSetup
 import xyz.mordorx.flacblaster.fs.DatabaseSingleton
 import xyz.mordorx.flacblaster.fs.MediaScanMode
 import xyz.mordorx.flacblaster.fs.MediaScannerSingleton
-import xyz.mordorx.flacblaster.ui.ExplorerViewModel
-import xyz.mordorx.flacblaster.ui.AutoViewModelFactory
-import xyz.mordorx.flacblaster.ui.MusicPlayerViewModel
-import xyz.mordorx.flacblaster.ui.superViewModel
+import xyz.mordorx.flacblaster.superutil.superViewModel
 import xyz.mordorx.flacblaster.ui.theme.FLACblasterTheme
 
 class MainActivity : ComponentActivity() {

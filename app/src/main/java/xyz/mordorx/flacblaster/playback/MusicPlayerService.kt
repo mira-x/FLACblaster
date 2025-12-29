@@ -13,7 +13,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
-import xyz.mordorx.flacblaster.SuperService
+import xyz.mordorx.flacblaster.superutil.SuperService
 
 @OptIn(UnstableApi::class)
 class MusicPlayerService : SuperService() {

@@ -1,6 +1,6 @@
-package xyz.mordorx.flacblaster
+package xyz.mordorx.flacblaster.ui
 
-import android.content.Context.MODE_PRIVATE
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
@@ -33,9 +33,9 @@ class AppSetup(val caller: ComponentActivity) {
                 else -> "/storage/${split[0]}/${split.getOrElse(1) { "" }}"
             }
             Log.d("AppSetup", "User picked: $path")
-            val prefs = caller.getSharedPreferences(caller.packageName, MODE_PRIVATE)
+            val prefs = caller.getSharedPreferences(caller.packageName, Context.MODE_PRIVATE)
             prefs.edit { putString("RootDirectory", path) }
-            MediaScannerSingleton.get(caller).scanAsync(MediaScanMode.CORRECT)
+            MediaScannerSingleton.Companion.get(caller).scanAsync(MediaScanMode.CORRECT)
         }
     }
 
@@ -64,7 +64,7 @@ class AppSetup(val caller: ComponentActivity) {
     }
 
     private fun requestRootDirectoryIfNeeded() {
-        val prefs = caller.getSharedPreferences(caller.packageName, MODE_PRIVATE)
+        val prefs = caller.getSharedPreferences(caller.packageName, Context.MODE_PRIVATE)
         if (prefs.getString("RootDirectory", "")!!.isNotEmpty()) {
             return
         }

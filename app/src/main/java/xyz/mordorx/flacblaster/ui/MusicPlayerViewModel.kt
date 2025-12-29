@@ -6,7 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import xyz.mordorx.flacblaster.SuperService
+import xyz.mordorx.flacblaster.superutil.SuperService
 import xyz.mordorx.flacblaster.playback.MusicPlayerService
 
 class MusicPlayerViewModel(val ctx: Context) : ViewModel() {
