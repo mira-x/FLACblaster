@@ -2,6 +2,7 @@ package eu.mordorx.flacblaster.ui
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -29,16 +30,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.flow
 import eu.mordorx.flacblaster.fs.DatabaseSingleton
 import eu.mordorx.flacblaster.fs.MediaScanMode
 import eu.mordorx.flacblaster.fs.MediaScannerSingleton
@@ -53,7 +54,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FLACblasterTheme {
-                FileListScreen()
+                CompositionLocalProvider(
+                    LocalInspectionMode provides true
+                ) {
+                    Log.d("MainActivity", "Recomposing")
+                    FileListScreen()
+                }
             }
         }
     }
@@ -61,20 +67,6 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         MediaScannerSingleton.get(this).scanAsync(MediaScanMode.FAST)
-    }
-}
-
-/**
- * @author https://stackoverflow.com/a/70020301
- */
-private fun countDownFlow(
-    start: Long,
-    delayInSeconds: Long = 1_000L,
-) = flow {
-    var count = start
-    while (count >= 0L) {
-        emit(count--)
-        delay(delayInSeconds)
     }
 }
 
@@ -137,7 +129,7 @@ fun FileListScreen() {
         ) {
             val treeItems by model.flattenedTree.collectAsState()
             LazyColumn(Modifier.fillMaxSize()) {
-                item() {
+                item {
                     val svc by player.svcFlow.collectAsState(initial = null)
                     Text("Player state: ${svc != null}")
                 }
@@ -168,7 +160,7 @@ fun TreeItemRow(
             },
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        val emoji = if (file.isFolder) (if (isExpanded) "📂" else "📁") else ""
+        val emoji = if (file.isFolder) (if (isExpanded) "\\" else "|") else ""
         val padding = "  ".repeat(level)
         Text(
             text = padding + emoji + " " + file.getName(),

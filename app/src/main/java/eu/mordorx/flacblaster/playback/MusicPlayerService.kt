@@ -35,7 +35,7 @@ class MusicPlayerService : SuperService() {
                 return DefaultAudioSink.Builder(context)
                     .setAudioProcessors(arrayOf<AudioProcessor>(downmixer))
                     .setEnableFloatOutput(enableFloatOutput)
-                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setEnableAudioOutputPlaybackParameters(enableAudioTrackPlaybackParams)
                     .build()
             }
         }

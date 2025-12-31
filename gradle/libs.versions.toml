@@ -16,9 +16,11 @@ material = "1.10.0"
 preferenceKtx = "1.2.1"
 roomRuntime = "2.8.4"
 media3Exoplayer = "1.9.0"
+runtimeTracing = "1.10.0"
 
 [libraries]
 # androidx-compose-compose-material-icons-extended = { module = "androidx.compose.material:compose-material-icons-extended", version.ref = "composeMaterialIconsExtended" }
+androidx-compose-runtime-tracing = { module = "androidx.compose.runtime:runtime-tracing", version.ref = "runtimeTracing" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-material = { module = "androidx.compose.material:material", version.ref = "material" }
 androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "preferenceKtx" }

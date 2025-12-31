@@ -30,6 +30,7 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     val scanState = MutableStateFlow(false)
     val scanMode = MutableStateFlow(MediaScanMode.CORRECT)
 
+    /** Starts a scan in a new thread */
     fun scanAsync(mode: MediaScanMode) {
         if (scanState.value) {
             return

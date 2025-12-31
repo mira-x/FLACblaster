@@ -25,8 +25,4 @@ class MusicPlayerViewModel(val ctx: Context) : ViewModel() {
             }
         }
     }
-
-    fun fuckYou() {
-
-    }
 }

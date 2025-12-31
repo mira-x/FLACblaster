@@ -33,7 +33,7 @@ class DownmixAudioProcessor : BaseAudioProcessor() {
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         supported = (inputAudioFormat.encoding == C.ENCODING_PCM_16BIT && inputAudioFormat.channelCount == 2);
-        Log.d("DownmixAudioProcessor", "Audio format: " + inputAudioFormat + " supported: " + supported);
+        Log.d("DownmixAudioProcessor", "Audio format: $inputAudioFormat supported: $supported");
         if (supported) {
             return inputAudioFormat;
         } else {
