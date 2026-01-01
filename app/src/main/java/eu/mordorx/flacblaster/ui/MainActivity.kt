@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
@@ -45,11 +47,19 @@ import eu.mordorx.flacblaster.fs.MediaScanMode
 import eu.mordorx.flacblaster.fs.MediaScannerSingleton
 import eu.mordorx.flacblaster.superutil.superViewModel
 import eu.mordorx.flacblaster.ui.theme.FLACblasterTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
+import kotlin.time.Duration
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val start = System.currentTimeMillis()
+        DatabaseSingleton.get(this)
+        Log.d("MainActivity", "DB init: ${System.currentTimeMillis() - start}ms")
+
         AppSetup(this).promptIfNeeded()
+
 
         enableEdgeToEdge()
         setContent {
@@ -70,9 +80,23 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** @author https://stackoverflow.com/a/54828055 */
+fun tickerFlow(period: Duration, initialDelay: Duration = Duration.ZERO) = flow {
+    delay(initialDelay)
+    while (true) {
+        emit(1)
+        delay(period)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileListScreen() {
+    val t = flow {
+        delay(3000)
+        emit(1)
+    }.collectAsState(initial = null)
+
     val ctx = LocalContext.current
     val rootDirPath = ctx.getSharedPreferences(ctx.packageName, Context.MODE_PRIVATE).getString("RootDirectory", "")!!
 
@@ -136,6 +160,11 @@ fun FileListScreen() {
                 items(treeItems, key = { it.file.path }) { treeItem ->
                     TreeItemRow(treeItem = treeItem, model = model)
                 }
+                if(treeItems.isEmpty() && t.value != null) {
+                    item {
+                        Text("Loading the music library seems to take longer than normal. Please try to restart the app.")
+                    }
+                }
             }
         }
     }
@@ -147,8 +176,10 @@ fun TreeItemRow(
     model: ExplorerViewModel
 ) {
     val file = treeItem.file
-    val level = treeItem.level
     val isExpanded = treeItem.isExpanded
+    val colors = MaterialTheme.colorScheme
+    val bg = if (file.isFolder) colors.surface else colors.surfaceBright
+    val fg = if (file.isFolder) colors.onSurface else colors.onSurfaceVariant
 
     Row(
         modifier = Modifier
@@ -157,23 +188,25 @@ fun TreeItemRow(
                 if (file.isFolder) {
                     model.toggleFolder(file.path)
                 }
-            },
+            }.background(bg),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         val emoji = if (file.isFolder) (if (isExpanded) "\\" else "|") else ""
-        val padding = "  ".repeat(level)
+        val padding = "  ".repeat(treeItem.level)
         Text(
             text = padding + emoji + " " + file.getName(),
             modifier = Modifier.weight(1f, fill = false),
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            color = fg
         )
 
         Spacer(Modifier.width(8.dp))
 
         Text(
             text = file.durationString() + " ",
-            modifier = Modifier.alignByBaseline()
+            modifier = Modifier.alignByBaseline(),
+            color = fg
         )
     }
 }
