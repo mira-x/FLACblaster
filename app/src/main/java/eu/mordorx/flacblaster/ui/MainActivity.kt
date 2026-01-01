@@ -38,9 +38,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import eu.mordorx.flacblaster.fs.DatabaseSingleton
 import eu.mordorx.flacblaster.fs.MediaScanMode
@@ -170,6 +176,24 @@ fun FileListScreen() {
     }
 }
 
+/** This draws a border but only at the top and the bottom */
+fun Modifier.borderHorizontal(color: Color, width: Dp): Modifier {
+    return this then Modifier.drawBehind {
+        drawLine(
+            color = color,
+            start = Offset(0f, 0f),
+            end = Offset(size.width, 0f),
+            strokeWidth = width.toPx()
+        )
+        drawLine(
+            color = color,
+            start = Offset(0f, size.height),
+            end = Offset(size.width, size.height),
+            strokeWidth = width.toPx()
+        )
+    }
+}
+
 @Composable
 fun TreeItemRow(
     treeItem: ExplorerViewModel.TreeItem,
@@ -178,8 +202,8 @@ fun TreeItemRow(
     val file = treeItem.file
     val isExpanded = treeItem.isExpanded
     val colors = MaterialTheme.colorScheme
-    val bg = if (file.isFolder) colors.surface else colors.surfaceBright
-    val fg = if (file.isFolder) colors.onSurface else colors.onSurfaceVariant
+    val bg = if (file.isFolder) colors.surfaceBright else colors.surface
+    val fg = if (file.isFolder) colors.onSurfaceVariant else colors.onSurface
 
     Row(
         modifier = Modifier
@@ -188,13 +212,21 @@ fun TreeItemRow(
                 if (file.isFolder) {
                     model.toggleFolder(file.path)
                 }
-            }.background(bg),
+            }
+            .background(bg)
+            .borderHorizontal(
+                color = colors.outline,
+                width = .25.dp
+            ),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        val emoji = if (file.isFolder) (if (isExpanded) "\\" else "|") else ""
-        val padding = "  ".repeat(treeItem.level)
+        val (prefix, suffix) = when {
+            file.isFolder && isExpanded -> Pair("\\", "/")
+            file.isFolder -> Pair("|", "|")
+            else -> Pair("", "")
+        }
         Text(
-            text = padding + emoji + " " + file.getName(),
+            text = "  ".repeat(treeItem.level) + prefix + " " + file.getName(),
             modifier = Modifier.weight(1f, fill = false),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -204,7 +236,7 @@ fun TreeItemRow(
         Spacer(Modifier.width(8.dp))
 
         Text(
-            text = file.durationString() + " ",
+            text = file.durationString() + " " + suffix + " ".repeat(treeItem.level),
             modifier = Modifier.alignByBaseline(),
             color = fg
         )
