@@ -1,6 +1,7 @@
 package eu.mordorx.flacblaster.ui
 
 import android.content.Context
+import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -22,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -46,6 +48,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -54,6 +57,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import eu.mordorx.flacblaster.R
 import eu.mordorx.flacblaster.fs.DatabaseSingleton
 import eu.mordorx.flacblaster.fs.MediaScanMode
 import eu.mordorx.flacblaster.fs.MediaScannerSingleton
@@ -92,15 +96,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** @author https://stackoverflow.com/a/54828055 */
-fun tickerFlow(period: Duration, initialDelay: Duration = Duration.ZERO) = flow {
-    delay(initialDelay)
-    while (true) {
-        emit(1)
-        delay(period)
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopBar(player: MusicPlayerViewModel) {
@@ -121,12 +116,27 @@ fun BottomBar(player: MusicPlayerViewModel) {
         containerColor = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.primary,
     ) {
-        Text(
-            modifier = Modifier
-                .fillMaxWidth(),
-            textAlign = TextAlign.Center,
-            text = "Bottom app bar",
-        )
+        Icon(painter = painterResource(R.drawable.subdirectory_arrow_right), contentDescription = "scroll song into view", modifier = Modifier.fillMaxSize(.75f).weight(1f).clickable(onClick = {
+
+        }))
+        Icon(painter = painterResource(R.drawable.fast_backward), contentDescription = "backward", modifier = Modifier.fillMaxSize(.75f).weight(1f).clickable(onClick = {
+
+        }))
+        Icon(painter = painterResource(R.drawable.play_pause), contentDescription = "play", modifier = Modifier.fillMaxSize(.75f).weight(1f).clickable(onClick = {
+            player.service?.player?.apply {
+                if(this.isPlaying) {
+                    this.pause()
+                } else {
+                    this.play()
+                }
+            }
+        }))
+        Icon(painter = painterResource(R.drawable.fast_forward), contentDescription = "forward", modifier = Modifier.fillMaxSize(.75f).weight(1f).clickable(onClick = {
+
+        }))
+        Icon(painter = painterResource(R.drawable.more_vert), contentDescription = "more", modifier = Modifier.fillMaxSize(.75f).weight(1f).clickable(onClick = {
+
+        }))
     }
 }
 
