@@ -44,14 +44,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import eu.mordorx.flacblaster.fs.DatabaseSingleton
 import eu.mordorx.flacblaster.fs.MediaScanMode
 import eu.mordorx.flacblaster.fs.MediaScannerSingleton
@@ -139,7 +141,7 @@ fun FileListScreen() {
     val ctx = LocalContext.current
     val rootDirPath = ctx.getSharedPreferences(ctx.packageName, Context.MODE_PRIVATE).getString("RootDirectory", "")!!
 
-    val model = superViewModel {
+    val explorer = superViewModel {
         ExplorerViewModel(
             dao = DatabaseSingleton.get(ctx).fileEntityDao(),
             rootPath = rootDirPath
@@ -192,14 +194,14 @@ fun FileListScreen() {
             state = pullRefreshState,
             modifier = Modifier.padding(padding)
         ) {
-            val treeItems by model.flattenedTree.collectAsState()
+            val treeItems by explorer.flattenedTree.collectAsState()
             LazyColumn(Modifier.fillMaxSize()) {
                 item {
                     val svc by player.svcFlow.collectAsState(initial = null)
                     Text("Player state: ${svc != null}")
                 }
                 items(treeItems, key = { it.file.path }) { treeItem ->
-                    TreeItemRow(treeItem = treeItem, model = model)
+                    TreeItemRow(treeItem = treeItem, explorer = explorer, player = player)
                 }
                 if(treeItems.isEmpty() && t.value != null) {
                     item {
@@ -232,7 +234,8 @@ fun Modifier.borderHorizontal(color: Color, width: Dp): Modifier {
 @Composable
 fun TreeItemRow(
     treeItem: ExplorerViewModel.TreeItem,
-    model: ExplorerViewModel
+    explorer: ExplorerViewModel,
+    player: MusicPlayerViewModel
 ) {
     val file = treeItem.file
     val isExpanded = treeItem.isExpanded
@@ -245,7 +248,13 @@ fun TreeItemRow(
             .fillMaxWidth()
             .clickable {
                 if (file.isFolder) {
-                    model.toggleFolder(file.path)
+                    explorer.toggleFolder(file.path)
+                } else {
+                    player.service?.player?.apply {
+                        this.setMediaItem(MediaItem.fromUri(treeItem.file.getUri()))
+                        this.prepare()
+                        this.play()
+                    }
                 }
             }
             .background(bg)

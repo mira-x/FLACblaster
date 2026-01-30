@@ -1,11 +1,13 @@
 package eu.mordorx.flacblaster.fs
 
+import android.net.Uri
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 import java.io.File
+import androidx.core.net.toUri
 
 @Entity(tableName = "files", indices = [
     Index(value=["path"]),
@@ -94,5 +96,9 @@ data class FileEntity(
         } else {
             return true
         }
+    }
+
+    fun getUri(): Uri {
+        return "file://$path".toUri()
     }
 }
