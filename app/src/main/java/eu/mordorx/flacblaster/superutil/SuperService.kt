@@ -23,6 +23,9 @@ abstract class SuperService : Service() {
          */
         inline fun <reified T: SuperService>instantiate(ctx: Context): StateFlow<T?> {
             Log.d("SuperService", "instantiate called for ${T::class.java.simpleName}")
+            /** Use applicationContext to prevent Activity context leaks.
+             The ServiceConnection and its closures can outlive the calling Activity. */
+            val appCtx = ctx.applicationContext
             val f = MutableStateFlow<T?>(null)
 
             val conn = object : ServiceConnection {
@@ -37,13 +40,13 @@ abstract class SuperService : Service() {
                 override fun onServiceDisconnected(name: ComponentName?) {
                     Log.d("SuperService", "onServiceDisconnected: $name")
                     f.value = null
-                    ctx.unbindService(this)
+                    appCtx.unbindService(this)
                 }
             }
 
-            val intent = Intent(ctx, T::class.java)
+            val intent = Intent(appCtx, T::class.java)
             Log.d("SuperService", "Binding service with intent: $intent")
-            val bindResult = ctx.bindService(intent, conn, BIND_AUTO_CREATE)
+            val bindResult = appCtx.bindService(intent, conn, BIND_AUTO_CREATE)
             Log.d("SuperService", "bindService result: $bindResult")
 
             return f

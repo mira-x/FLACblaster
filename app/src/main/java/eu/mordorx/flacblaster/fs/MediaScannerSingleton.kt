@@ -19,7 +19,9 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     companion object {
         private var singleton: MediaScannerSingleton? = null
         fun get(ctx: Context): MediaScannerSingleton {
-            return singleton ?: MediaScannerSingleton(ctx)
+            /** Use applicationContext to prevent Activity context leaks, since this singleton outlives any Activity.
+             Also: the old code was missing the assignment to `singleton`, so it was creating a new instance on every call. */
+            return singleton ?: MediaScannerSingleton(ctx.applicationContext).also { singleton = it }
         }
     }
 
