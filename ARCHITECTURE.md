@@ -66,8 +66,8 @@ The found files are then passed on to Phase 2.
 This collects and updates all metadata (M1, M2, M3) for files. This is done only as needed, so files with existing M3 data that have no changed M1 data, will not be re-read.
 The files whose M3 data changed are passed to Phase 3.
 
-#### Phase 3: Metadata for folders
-This collects and updates all metadata (M1, M2, M3) for folders of changed files and their parent folders up to the root directory. This phase mainly performs aggregate functions like summing the total duration of a folder.
-
-#### Phase 4: Purge
+#### Phase 3: Purge
 Delete all files from the DB that are not existent on the disk.
+
+#### Phase 4: Metadata for folders
+This collects and updates all metadata (M1, M2, M3) for folders of changed files and their parent folders up to the root directory. This phase mainly performs aggregate functions like summing the total duration of a folder.

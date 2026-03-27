@@ -72,14 +72,14 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
             Log.d("MediaScannerSingleton", "2 Found rootDir: " + (db().fileEntityDao().getFileByPath("/storage/emulated/0/Music")?.getName() ?: "PRANK BRO"))
 
             Log.d("MediaScannerSingleton", "Starting scan phase 3 in mode ${scanMode.value.name}...")
-            scanStateLabel.value = "(3/4) Collecting folder metadata..."
-            scanPhase3(updatedSongs)
+            scanStateLabel.value = "(3/4) Purging DB..."
+            scanPhase3(filesAndFoldersToCheck)
 
             Log.d("MediaScannerSingleton", "3 Found rootDir: " + (db().fileEntityDao().getFileByPath("/storage/emulated/0/Music")?.getName() ?: "PRANK BRO"))
 
             Log.d("MediaScannerSingleton", "Starting scan phase 4 in mode ${scanMode.value.name}...")
-            scanStateLabel.value = "(4/4) Purging DB..."
-            scanPhase4(filesAndFoldersToCheck)
+            scanStateLabel.value = "(4/4) Collecting folder metadata..."
+            scanPhase4(updatedSongs)
 
             Log.d("MediaScannerSingleton", "4 Found rootDir: " + (db().fileEntityDao().getFileByPath("/storage/emulated/0/Music")?.getName() ?: "PRANK BRO"))
         }
@@ -139,7 +139,7 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     }
 
     /**
-     * @return HashSet<File> of files and folders that should be scanned for changes.
+     * @return HashSet<File> of files and folders that should be scanned for changes. It only contains files and folders that exist.
      */
     private fun scanPhase1(): HashSet<File> {
         // FAST mode requires that at least the root music folder is inside the DB. Thus the first scan must be in CORRECT mode.
@@ -222,7 +222,7 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     /**
      * @param modifiedFiles A Set of files (not folders) that were modified.
      */
-    private fun scanPhase3(modifiedFiles: HashSet<File>) {
+    private fun scanPhase4(modifiedFiles: HashSet<File>) {
         val rootDirPath = ctx.getSharedPreferences(ctx.packageName, MODE_PRIVATE).getString("RootDirectory", "")!!
         if (rootDirPath.isEmpty()) {
             throw RuntimeException("No music root directory is set")
@@ -276,24 +276,20 @@ class MediaScannerSingleton private constructor(val ctx: Context) {
     }
 
     /**
-     * @param modifiedPathsSet A Set of files and folders that may or may not exist and may or may not be modified
+     * @param pathsToCheck A Set of files/folders that exist (as per FS) and may have been modified
      */
-    private fun scanPhase4(modifiedPathsSet: HashSet<File>) {
-        // Deleted files won't shop up in modifiedPathsSet, but their folders!
-        val modifiedFolders = modifiedPathsSet.filter { it.isDirectory }
+    private fun scanPhase3(pathsToCheck: HashSet<File>) {
+        // Deleted files won't show up in pathsToCheck, but their parent folders will, because Android updates a folder's modified date when a direct child is created, renamed or deleted. Thus, we filter out all files from the DB for the given folders, if the file is not in the HashSet.
+        val folderPrefixes = pathsToCheck
+            .filter { it.isDirectory }
+            .mapTo(HashSet()) { it.absolutePath + "/" }
 
-        val possiblyDeleted = mutableSetOf<FileEntity>()
-        modifiedFolders.forEach { folder ->
-            possiblyDeleted.addAll(db().fileEntityDao().getAllFilesPrefixed(folder.absolutePath))
-        }
+        val existingPaths = pathsToCheck.mapTo(HashSet()) { it.absolutePath }
 
-        val deleted = mutableListOf<FileEntity>()
-
-        possiblyDeleted.toList().forEachWithProgressParallel {
-            if (!File(it.path).exists()) {
-                deleted.add(it)
+        val deleted = db().fileEntityDao().getAllFiles()
+            .filter { file ->
+                folderPrefixes.any { file.path.startsWith(it) } && file.path !in existingPaths
             }
-        }
 
         db().fileEntityDao().delete(*deleted.toTypedArray())
     }
