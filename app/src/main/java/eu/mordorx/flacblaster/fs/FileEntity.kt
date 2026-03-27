@@ -36,6 +36,10 @@ data class FileEntity(
     @ColumnInfo(name = "channelCount") var channelCount: Int,
     /** M3 for files only. */
     @ColumnInfo(name = "metadata") var metadata: Map<String, List<String>>,
+    /** User-defined for files/folders */
+    @ColumnInfo(name = "isPodcast") var isPodcast: Boolean,
+    /** Only used for podcasts */
+    @ColumnInfo(name = "lastResumeMs") var lastResumeMs: Long
 ) {
     init {
         require(path.isNotEmpty()) { "Files must have a path" }
@@ -55,7 +59,9 @@ data class FileEntity(
                 metadata = mapOf(),
                 bitrateKbps = 0,
                 sampleRateHz = 0,
-                channelCount = 0
+                channelCount = 0,
+                isPodcast = false,
+                lastResumeMs = 0,
             )
         }
     }
