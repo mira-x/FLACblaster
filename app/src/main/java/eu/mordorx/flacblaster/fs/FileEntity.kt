@@ -13,6 +13,7 @@ import androidx.core.net.toUri
     Index(value=["path"]),
     Index(value=["isFolder"]),
     Index(value=["isFolder", "path"]),
+    Index(value=["isSelected", "path"]),
 ])
 @TypeConverters(Converters::class)
 data class FileEntity(
@@ -36,10 +37,13 @@ data class FileEntity(
     @ColumnInfo(name = "channelCount") var channelCount: Int,
     /** M3 for files only. */
     @ColumnInfo(name = "metadata") var metadata: Map<String, List<String>>,
+
     /** User-defined for files/folders */
     @ColumnInfo(name = "isPodcast") var isPodcast: Boolean,
     /** Only used for podcasts */
-    @ColumnInfo(name = "lastResumeMs") var lastResumeMs: Long
+    @ColumnInfo(name = "lastResumeMs") var lastResumeMs: Long,
+
+    @ColumnInfo(name = "isSelected") var isSelected: Boolean
 ) {
     init {
         require(path.isNotEmpty()) { "Files must have a path" }
@@ -62,6 +66,7 @@ data class FileEntity(
                 channelCount = 0,
                 isPodcast = false,
                 lastResumeMs = 0,
+                isSelected = false
             )
         }
     }

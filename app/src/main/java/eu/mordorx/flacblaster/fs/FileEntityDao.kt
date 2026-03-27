@@ -41,4 +41,8 @@ interface FileEntityDao {
 
     @Query("SELECT * FROM files ORDER BY isFolder DESC, path ASC")
     fun getAllFilesFlow(): Flow<List<FileEntity>>
+
+    /// This deselects all selected items and selects the specified one
+    @Query("UPDATE files SET isSelected = (path = :path) WHERE isSelected = true OR path = :path")
+    fun setSelection(path: String)
 }

@@ -123,8 +123,8 @@ fun BottomBar(player: MusicPlayerViewModel) {
 
         }))
         Icon(painter = painterResource(R.drawable.play_pause), contentDescription = "play", modifier = Modifier.fillMaxSize(.75f).weight(1f).clickable(onClick = {
-            player.service?.player?.apply {
-                if(this.isPlaying) {
+            player.service?.apply {
+                if(this.isPlaying()) {
                     this.pause()
                 } else {
                     this.play()

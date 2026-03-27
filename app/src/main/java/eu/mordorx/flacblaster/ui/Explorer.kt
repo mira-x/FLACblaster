@@ -187,11 +187,7 @@ fun TreeItemRow(
                 if (file.isFolder) {
                     explorer.toggleFolder(file.path)
                 } else {
-                    player.service?.player?.apply {
-                        this.setMediaItem(MediaItem.fromUri(treeItem.file.getUri()))
-                        this.prepare()
-                        this.play()
-                    }
+                    player.service?.play(file)
                 }
             }
             .background(bg)
@@ -204,6 +200,7 @@ fun TreeItemRow(
         val (prefix, suffix) = when {
             file.isFolder && isExpanded -> Pair("\\", "/")
             file.isFolder -> Pair("|", "|")
+            !file.isFolder && file.isSelected -> Pair(">", "")
             else -> Pair("", "")
         }
         Text(
