@@ -29,6 +29,7 @@ import kotlin.coroutines.coroutineContext
 @OptIn(UnstableApi::class)
 class MusicPlayerService : SuperService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /// Note: ExoPlayer may only be accessed from the Main Thread, i.e. not serviceScope
     private var player: ExoPlayer? = null
     private val downmixer = DownmixAudioProcessor()
 

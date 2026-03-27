@@ -45,4 +45,7 @@ interface FileEntityDao {
     /// This deselects all selected items and selects the specified one
     @Query("UPDATE files SET isSelected = (path = :path) WHERE isSelected = true OR path = :path")
     fun setSelection(path: String)
+
+    @Query("SELECT * FROM files WHERE isSelected = true LIMIT 1")
+    fun getSelection(): Flow<FileEntity>
 }

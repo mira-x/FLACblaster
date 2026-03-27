@@ -1,5 +1,6 @@
 package eu.mordorx.flacblaster.ui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.drawable.Icon
 import android.os.Bundle
@@ -63,11 +64,18 @@ import eu.mordorx.flacblaster.fs.MediaScanMode
 import eu.mordorx.flacblaster.fs.MediaScannerSingleton
 import eu.mordorx.flacblaster.superutil.superViewModel
 import eu.mordorx.flacblaster.ui.theme.FLACblasterTheme
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.GlobalScope.coroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.timeout
+import java.io.File
+import java.nio.file.Path
+import kotlin.coroutines.coroutineContext
 import kotlin.time.Duration
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun FileListScreen() {
     val t = flow {
@@ -83,6 +91,12 @@ fun FileListScreen() {
             dao = DatabaseSingleton.get(ctx).fileEntityDao(),
             rootPath = rootDirPath
         )
+    }
+
+    // load last played file selection and expand its parent folders
+    val initialSelection by DatabaseSingleton.get(ctx).fileEntityDao().getSelection().timeout(Duration.parse("250ms")).take(1).collectAsState(null)
+    if (initialSelection != null) {
+        explorer.expandFile(File(initialSelection!!.path))
     }
 
     val scanner = remember { MediaScannerSingleton.get(ctx) }

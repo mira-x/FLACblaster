@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.update
 import eu.mordorx.flacblaster.fs.FileEntity
 import eu.mordorx.flacblaster.fs.FileEntityDao
 import kotlinx.coroutines.flow.first
+import java.io.File
+import java.nio.file.Path
 
 class ExplorerViewModel(private val dao: FileEntityDao, private val rootPath: String) : ViewModel() {
     // This is our internal variable for writing
@@ -28,6 +30,24 @@ class ExplorerViewModel(private val dao: FileEntityDao, private val rootPath: St
             if (path in current) current - path
             else current + path
         }
+    }
+
+    fun expandFile(f: File) {
+        f
+            .toPath()
+            .getRecursiveParents()
+            .map(Path::toString)
+            .forEach { path -> expandedFoldersMut.update { expandedSet -> expandedSet + path } }
+    }
+
+    /**
+     * @return A list of all paths, beginning with the lowest hierarchy dir ( / ) first
+     */
+    public fun Path.getRecursiveParents(): List<Path> {
+        val parent = this.parent ?: return emptyList()
+        val parents = parent.getRecursiveParents()
+
+        return parents.plusElement(parent)
     }
 
     data class TreeItem(
