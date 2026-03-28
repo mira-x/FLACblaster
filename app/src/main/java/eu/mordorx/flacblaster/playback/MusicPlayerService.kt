@@ -8,7 +8,6 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.Tracks
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -20,11 +19,12 @@ import eu.mordorx.flacblaster.fs.FileEntity
 import eu.mordorx.flacblaster.superutil.SuperService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope.coroutineContext
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.timeout
 import kotlinx.coroutines.launch
-import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.withContext
+import kotlin.time.Duration
 
 @OptIn(UnstableApi::class)
 class MusicPlayerService : SuperService() {
@@ -32,9 +32,6 @@ class MusicPlayerService : SuperService() {
     /// Note: ExoPlayer may only be accessed from the Main Thread, i.e. not serviceScope
     private var player: ExoPlayer? = null
     private val downmixer = DownmixAudioProcessor()
-
-    // For each file, store a flow that stores at which millisecond the song is being played back
-    var filesPlaybackState = HashMap<String, MutableStateFlow<Float>>()
 
     fun play(f: FileEntity) {
         if (player == null) return;
@@ -52,6 +49,8 @@ class MusicPlayerService : SuperService() {
     fun play() = player?.play()
     /** Pause playback, if applicable */
     fun pause() = player?.pause()
+    /** The ExoPlayer may only be accessed from the main thread. Use this to access it via Main Thread when inside a serviceScope */
+    private suspend fun accessPlayer(lambda: suspend CoroutineScope.() -> Unit) = withContext(Dispatchers.Main, lambda)
 
     override fun onCreate() {
         super.onCreate()
@@ -106,6 +105,16 @@ class MusicPlayerService : SuperService() {
                 Log.d("MusicPlayerService", "onPositionDiscontinuity")
             }
         })
+
+        // Select last selected song
+        serviceScope.launch {
+            DatabaseSingleton.get(this@MusicPlayerService).fileEntityDao().getSelection()?.let {
+                accessPlayer {
+                    player?.setMediaItem(MediaItem.fromUri(it.getUri()))
+                    player?.prepare()
+                }
+            }
+        }
     }
 
 }
