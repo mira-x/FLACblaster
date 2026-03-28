@@ -47,7 +47,7 @@ interface FileEntityDao {
     fun setSelection(path: String)
 
     @Query("SELECT * FROM files WHERE isSelected = true LIMIT 1")
-    fun getSelectionFlow(): Flow<FileEntity>
+    fun getSelectionFlow(): Flow<FileEntity?>
 
     @Query("SELECT * FROM files WHERE isSelected = true LIMIT 1")
     fun getSelection(): FileEntity?
