@@ -1,5 +1,9 @@
 package eu.mordorx.flacblaster.playback
 
+import android.annotation.SuppressLint
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.util.Log
 import androidx.annotation.OptIn
@@ -14,12 +18,15 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.session.MediaSession
+import androidx.media3.ui.PlayerNotificationManager
 import eu.mordorx.flacblaster.fs.DatabaseSingleton
 import eu.mordorx.flacblaster.fs.FileEntity
 import eu.mordorx.flacblaster.superutil.SuperService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.timeout
 import kotlinx.coroutines.launch
@@ -28,10 +35,19 @@ import kotlin.time.Duration
 
 @OptIn(UnstableApi::class)
 class MusicPlayerService : SuperService() {
+    companion object {
+        private const val NOTIFICATION_ID = 1337
+        private const val NOTIFICATION_CHANNEL_ID = "eu.mordorx.flacblaster.playback"
+    }
+
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     /// Note: ExoPlayer may only be accessed from the Main Thread, i.e. not serviceScope
     private var player: ExoPlayer? = null
     private val downmixer = DownmixAudioProcessor()
+    // MediaSession exposes the player to the system (lock screen, Bluetooth, Android Auto).
+    private var mediaSession: MediaSession? = null
+    // PlayerNotificationManager builds and updates the media notification automatically.
+    private var notificationManager: PlayerNotificationManager? = null
 
     fun play(f: FileEntity) {
         if (player == null) return;
@@ -51,6 +67,14 @@ class MusicPlayerService : SuperService() {
     fun pause() = player?.pause()
     /** The ExoPlayer may only be accessed from the main thread. Use this to access it via Main Thread when inside a serviceScope */
     private suspend fun accessPlayer(lambda: suspend CoroutineScope.() -> Unit) = withContext(Dispatchers.Main, lambda)
+
+    override fun onDestroy() {
+        notificationManager?.setPlayer(null)
+        mediaSession?.release()
+        player?.release()
+        serviceScope.cancel()
+        super.onDestroy()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -76,7 +100,7 @@ class MusicPlayerService : SuperService() {
             .setRenderersFactory(renderersFactory)
             .build()
 
-        player?.setAudioAttributes(
+        player!!.setAudioAttributes(
             AudioAttributes.Builder()
                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                 .setUsage(C.USAGE_MEDIA)
@@ -84,7 +108,7 @@ class MusicPlayerService : SuperService() {
             true
         )
 
-        player?.addListener(object : Player.Listener {
+        player!!.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d("MusicPlayerService", "Player got signal: $playbackState")
             }
@@ -105,6 +129,31 @@ class MusicPlayerService : SuperService() {
                 Log.d("MusicPlayerService", "onPositionDiscontinuity")
             }
         })
+
+        // MediaSession connects the player to the Android media system (lock screen, Bluetooth, etc.)
+        mediaSession = MediaSession.Builder(this, player!!).build()
+
+        // Notification channel is required on Android 8+. Creating it repeatedly is a no-op.
+        NotificationChannel(NOTIFICATION_CHANNEL_ID, "Playback", NotificationManager.IMPORTANCE_LOW)
+            .also { getSystemService(NotificationManager::class.java).createNotificationChannel(it) }
+
+        // PlayerNotificationManager builds the media notification and keeps it in sync with the
+        // player state. Next/previous are forwarded to the Player, which currently does nothing.
+        notificationManager = PlayerNotificationManager.Builder(this, NOTIFICATION_ID, NOTIFICATION_CHANNEL_ID)
+            .setNotificationListener(object : PlayerNotificationManager.NotificationListener {
+                @SuppressLint("ForegroundServiceType")
+                override fun onNotificationPosted(notificationId: Int, notification: Notification, ongoing: Boolean) {
+                    Log.d("MusicPlayerService", "Notification posted, ongoing=$ongoing")
+                    if (ongoing) startForeground(notificationId, notification)
+                    else stopForeground(false)
+                }
+                override fun onNotificationCancelled(notificationId: Int, dismissedByUser: Boolean) {
+                    Log.d("MusicPlayerService", "Notification cancelled, dismissedByUser=$dismissedByUser")
+                    stopForeground(true)
+                }
+            })
+            .build()
+            .also { it.setPlayer(player) }
 
         // Select last selected song
         serviceScope.launch {

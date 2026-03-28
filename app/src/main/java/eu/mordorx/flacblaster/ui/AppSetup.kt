@@ -1,8 +1,11 @@
 package eu.mordorx.flacblaster.ui
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.Settings
@@ -11,13 +14,14 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import eu.mordorx.flacblaster.fs.MediaScanMode
 import eu.mordorx.flacblaster.fs.MediaScannerSingleton
 
 /**
- * This prompts the user to allow MANAGE_EXTERNAL_STORAGE and to pick a music directory.
+ * This prompts the user to allow MANAGE_EXTERNAL_STORAGE, POST_NOTIFICATIONS and to pick a music directory.
  * Call this before setContent{}
  */
 class AppSetup(val caller: ComponentActivity) {
@@ -39,6 +43,12 @@ class AppSetup(val caller: ComponentActivity) {
         }
     }
 
+    private val notificationPermissionLauncher = caller.registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        Log.d("AppSetup", "POST_NOTIFICATIONS granted: $granted")
+    }
+
     private val permissionLauncher: ActivityResultLauncher<Intent> = caller.registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
@@ -51,6 +61,13 @@ class AppSetup(val caller: ComponentActivity) {
     }
 
     fun promptIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(caller, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Toast.makeText(caller, "Allow notifications for media control notifications", Toast.LENGTH_LONG).show()
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         if (!Environment.isExternalStorageManager()) {
             Toast.makeText(caller, "Storage permission required", Toast.LENGTH_LONG).show()
             val intent = Intent(
