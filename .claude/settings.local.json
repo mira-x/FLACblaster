@@ -1,11 +1,54 @@
 {
   "permissions": {
     "allow": [
+      "WebSearch",
+      "Bash(find:*)",
       "Bash(./gradlew assembleDebug:*)",
       "Bash(./gradlew clean:*)",
       "Bash(adb logcat:*)",
       "Bash(adb install:*)",
       "Bash(adb shell:*)"
-    ]
+    ],
+    "deny": [
+      "Read(**/.env*)",        "Write(**/.env*)",        "Edit(**/.env*)",        "MultiEdit(**/.env*)",        "Update(**/.env*)",        "Bash(*:**/.env*)",
+      "Read(**/env.php*)",     "Write(**/env.php*)",     "Edit(**/env.php*)",     "MultiEdit(**/env.php*)",     "Update(**/env.php*)",     "Bash(*:**/env.php*)",
+
+      "Read(**/*.pem)",        "Write(**/*.pem)",        "Edit(**/*.pem)",        "MultiEdit(**/*.pem)",        "Update(**/*.pem)",        "Bash(*:**/*.pem)",
+      "Read(**/*.key)",        "Write(**/*.key)",        "Edit(**/*.key)",        "MultiEdit(**/*.key)",        "Update(**/*.key)",        "Bash(*:**/*.key)",
+      "Read(**/*.p12)",        "Write(**/*.p12)",        "Edit(**/*.p12)",        "MultiEdit(**/*.p12)",        "Update(**/*.p12)",        "Bash(*:**/*.p12)",
+      "Read(**/*.pfx)",        "Write(**/*.pfx)",        "Edit(**/*.pfx)",        "MultiEdit(**/*.pfx)",        "Update(**/*.pfx)",        "Bash(*:**/*.pfx)",
+      "Read(**/*.jks)",        "Write(**/*.jks)",        "Edit(**/*.jks)",        "MultiEdit(**/*.jks)",        "Update(**/*.jks)",        "Bash(*:**/*.jks)",
+      "Read(**/*.keystore)",   "Write(**/*.keystore)",   "Edit(**/*.keystore)",   "MultiEdit(**/*.keystore)",   "Update(**/*.keystore)",   "Bash(*:**/*.keystore)",
+
+      "Read(**/secrets/**)",       "Write(**/secrets/**)",       "Edit(**/secrets/**)",       "MultiEdit(**/secrets/**)",       "Update(**/secrets/**)",       "Bash(*:**/secrets/**)",
+      "Read(**/credentials/**)",   "Write(**/credentials/**)",   "Edit(**/credentials/**)",   "MultiEdit(**/credentials/**)",   "Update(**/credentials/**)",   "Bash(*:**/credentials/**)",
+      "Read(**/.aws/**)",          "Write(**/.aws/**)",          "Edit(**/.aws/**)",          "MultiEdit(**/.aws/**)",          "Update(**/.aws/**)",          "Bash(*:**/.aws/**)",
+      "Read(**/.ssh/**)",          "Write(**/.ssh/**)",          "Edit(**/.ssh/**)",          "MultiEdit(**/.ssh/**)",          "Update(**/.ssh/**)",          "Bash(*:**/.ssh/**)",
+      "Read(**/.gnupg/**)",        "Write(**/.gnupg/**)",        "Edit(**/.gnupg/**)",        "MultiEdit(**/.gnupg/**)",        "Update(**/.gnupg/**)",        "Bash(*:**/.gnupg/**)",
+
+      "Read(**/.git-credentials)",     "Write(**/.git-credentials)",     "Edit(**/.git-credentials)",     "MultiEdit(**/.git-credentials)",     "Update(**/.git-credentials)",     "Bash(*:**/.git-credentials)",
+      "Read(**/.netrc)",               "Write(**/.netrc)",               "Edit(**/.netrc)",               "MultiEdit(**/.netrc)",               "Update(**/.netrc)",               "Bash(*:**/.netrc)",
+      "Read(**/.npmrc)",               "Write(**/.npmrc)",               "Edit(**/.npmrc)",               "MultiEdit(**/.npmrc)",               "Update(**/.npmrc)",               "Bash(*:**/.npmrc)",
+      "Read(**/.pypirc)",              "Write(**/.pypirc)",              "Edit(**/.pypirc)",              "MultiEdit(**/.pypirc)",              "Update(**/.pypirc)",              "Bash(*:**/.pypirc)",
+      "Read(**/.docker/config.json)",  "Write(**/.docker/config.json)",  "Edit(**/.docker/config.json)",  "MultiEdit(**/.docker/config.json)",  "Update(**/.docker/config.json)",  "Bash(*:**/.docker/config.json)",
+      "Read(**/.kube/config)",         "Write(**/.kube/config)",         "Edit(**/.kube/config)",         "MultiEdit(**/.kube/config)",         "Update(**/.kube/config)",         "Bash(*:**/.kube/config)",
+      "Read(**/.pgpass)",              "Write(**/.pgpass)",              "Edit(**/.pgpass)",              "MultiEdit(**/.pgpass)",              "Update(**/.pgpass)",              "Bash(*:**/.pgpass)",
+      "Read(**/.my.cnf)",              "Write(**/.my.cnf)",              "Edit(**/.my.cnf)",              "MultiEdit(**/.my.cnf)",              "Update(**/.my.cnf)",              "Bash(*:**/.my.cnf)",
+      "Read(**/.htpasswd)",            "Write(**/.htpasswd)",            "Edit(**/.htpasswd)",            "MultiEdit(**/.htpasswd)",            "Update(**/.htpasswd)",            "Bash(*:**/.htpasswd)",
+
+      "Read(**/docker-compose*.yml)",        "Write(**/docker-compose*.yml)",        "Edit(**/docker-compose*.yml)",        "MultiEdit(**/docker-compose*.yml)",        "Update(**/docker-compose*.yml)",        "Bash(*:**/docker-compose*.yml)",
+      "Read(**/config/database.yml)",        "Write(**/config/database.yml)",        "Edit(**/config/database.yml)",        "MultiEdit(**/config/database.yml)",        "Update(**/config/database.yml)",        "Bash(*:**/config/database.yml)",
+      "Read(**/config/master.key)",          "Write(**/config/master.key)",          "Edit(**/config/master.key)",          "MultiEdit(**/config/master.key)",          "Update(**/config/master.key)",          "Bash(*:**/config/master.key)",
+      "Read(**/config/credentials.yml.enc)", "Write(**/config/credentials.yml.enc)", "Edit(**/config/credentials.yml.enc)", "MultiEdit(**/config/credentials.yml.enc)", "Update(**/config/credentials.yml.enc)", "Bash(*:**/config/credentials.yml.enc)",
+
+      "Read(**/*.tfstate)",                  "Write(**/*.tfstate)",                  "Edit(**/*.tfstate)",                  "MultiEdit(**/*.tfstate)",                  "Update(**/*.tfstate)",                  "Bash(*:**/*.tfstate)",
+      "Read(**/*.tfvars)",                   "Write(**/*.tfvars)",                   "Edit(**/*.tfvars)",                   "MultiEdit(**/*.tfvars)",                   "Update(**/*.tfvars)",                   "Bash(*:**/*.tfvars)",
+      "Read(**/*-service-account*.json)",     "Write(**/*-service-account*.json)",     "Edit(**/*-service-account*.json)",     "MultiEdit(**/*-service-account*.json)",     "Update(**/*-service-account*.json)",     "Bash(*:**/*-service-account*.json)",
+      "Read(**/firebase*.json)",             "Write(**/firebase*.json)",             "Edit(**/firebase*.json)",             "MultiEdit(**/firebase*.json)",             "Update(**/firebase*.json)",             "Bash(*:**/firebase*.json)",
+      "Read(**/vault*.hcl)",                 "Write(**/vault*.hcl)",                 "Edit(**/vault*.hcl)",                 "MultiEdit(**/vault*.hcl)",                 "Update(**/vault*.hcl)",                 "Bash(*:**/vault*.hcl)",
+      "Read(**/*token*)",                    "Write(**/*token*)",                    "Edit(**/*token*)",                    "MultiEdit(**/*token*)",                    "Update(**/*token*)",                    "Bash(*:**/*token*)",
+      "Read(**/*secret*)",                   "Write(**/*secret*)",                   "Edit(**/*secret*)",                   "MultiEdit(**/*secret*)",                   "Update(**/*secret*)",                   "Bash(*:**/*secret*)"
+    ],
+    "ask": []
   }
 }
