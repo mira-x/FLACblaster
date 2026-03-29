@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
@@ -31,15 +34,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import eu.mordorx.flacblaster.fs.DatabaseSingleton
+import eu.mordorx.flacblaster.fs.FileEntity
+import eu.mordorx.flacblaster.fs.FileEntityDao
+import eu.mordorx.flacblaster.fs.FileEntityDao_Impl
 import eu.mordorx.flacblaster.fs.MediaScanMode
 import eu.mordorx.flacblaster.fs.MediaScannerSingleton
 import eu.mordorx.flacblaster.superutil.superViewModel
@@ -162,55 +172,103 @@ fun Modifier.borderHorizontal(color: Color, width: Dp): Modifier {
     }
 }
 
+@Preview
+@Composable
+fun TreeItemRowPreview() {
+    val f = FileEntity.emptyOfDummy("/Musik/podcast123.opus")
+    f.isPodcast = true
+    f.lastResumeMs = 750000
+    f.durationMs = 1900000
+    val dir = FileEntity.emptyOfDummy("/Musik/")
+    dir.durationMs = 1234567890
+    val itm1 = ExplorerViewModel.TreeItem(dir, 0, true)
+    val itm2 = ExplorerViewModel.TreeItem(f, 1, false)
+    Column {
+        TreeItemRow(itm1, null, null)
+        TreeItemRow(itm2, null, null)
+    }
+}
+
+/**
+ * A whole tree item row with all extras included.
+ *
+ * View Models are optional to allow for previews.
+ */
 @Composable
 fun TreeItemRow(
     treeItem: ExplorerViewModel.TreeItem,
-    explorer: ExplorerViewModel,
-    player: MusicPlayerViewModel
+    explorer: ExplorerViewModel?,
+    player: MusicPlayerViewModel?
 ) {
-    val file = treeItem.file
-    val isExpanded = treeItem.isExpanded
+    val f = treeItem.file
     val colors = MaterialTheme.colorScheme
-    val bg = if (file.isFolder) colors.surfaceBright else colors.surface
-    val fg = if (file.isFolder) colors.onSurfaceVariant else colors.onSurface
+    val bg = if (f.isFolder) colors.surfaceBright else colors.surface
+    val fg = if (f.isFolder) colors.onSurfaceVariant else colors.onSurface
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                if (file.isFolder) {
-                    explorer.toggleFolder(file.path)
-                } else {
-                    player.service?.play(file)
-                }
+    Box(Modifier
+        .fillMaxWidth()
+        .clickable {
+            if (f.isFolder) {
+                explorer?.toggleFolder(f.path)
+            } else {
+                player?.service?.play(f)
             }
-            .background(bg)
-            .borderHorizontal(
-                color = colors.outline,
-                width = .25.dp
-            ),
-        horizontalArrangement = Arrangement.SpaceBetween
+        }
+        .background(bg)
+        .borderHorizontal(
+            color = colors.outline,
+            width = .25.dp
+        )
     ) {
+        if (f.isPodcast) {
+            PlaybackIndicator(bg) { f.lastResumeMs.toFloat() / f.durationMs.toFloat() }
+        }
+
+        AudioFileInfo(treeItem, fg)
+    }
+}
+
+/**
+ * Draw a thin red line at the box bottom that indicates how far the audio file has been played. Inspired by the thin line at the bottom of YouTube thumbnails that indicate how far you've watched a video.
+ */
+@Composable
+private fun BoxScope.PlaybackIndicator(backgroundColor: Color, progress: () -> Float) {
+    LinearProgressIndicator(
+        color = Color.Red,
+        trackColor = backgroundColor,
+        strokeCap = StrokeCap.Square,
+        modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).zIndex(-10f).height(2.dp),
+        progress = progress,
+        drawStopIndicator = {}
+    )
+}
+
+@Composable
+private fun AudioFileInfo(itm: ExplorerViewModel.TreeItem, textColor: Color) {
+    val f = itm.file
+    val isExpanded = itm.isExpanded
+
+    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.zIndex(10f).fillMaxWidth()) {
         val (prefix, suffix) = when {
-            file.isFolder && isExpanded -> Pair("\\", "/")
-            file.isFolder -> Pair("|", "|")
-            !file.isFolder && file.isSelected -> Pair(">", "")
+            f.isFolder && isExpanded -> Pair("\\", "/")
+            f.isFolder -> Pair("|", "|")
+            !f.isFolder && f.isSelected -> Pair(">", "")
             else -> Pair("", "")
         }
         Text(
-            text = "  ".repeat(treeItem.level) + prefix + " " + file.getName(),
+            text = "  ".repeat(itm.level) + prefix + " " + f.getName(),
             modifier = Modifier.weight(1f, fill = false),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = fg
+            color = textColor
         )
 
         Spacer(Modifier.width(8.dp))
 
         Text(
-            text = file.durationString() + " " + suffix + " ".repeat(treeItem.level),
+            text = f.durationString() + " " + suffix + " ".repeat(itm.level),
             modifier = Modifier.alignByBaseline(),
-            color = fg
+            color = textColor
         )
     }
 }

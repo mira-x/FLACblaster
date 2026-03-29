@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.timeout
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.concurrent.fixedRateTimer
 import kotlin.time.Duration
 
 @OptIn(UnstableApi::class)
@@ -57,6 +58,9 @@ class MusicPlayerService : SuperService() {
         }
         player!!.setMediaItem(MediaItem.fromUri(f.getUri()))
         player!!.prepare()
+        if (f.isPodcast) {
+            player!!.seekTo(f.lastResumeMs)
+        }
         player!!.play()
     }
 
@@ -67,6 +71,8 @@ class MusicPlayerService : SuperService() {
     fun pause() = player?.pause()
     /** The ExoPlayer may only be accessed from the main thread. Use this to access it via Main Thread when inside a serviceScope */
     private suspend fun accessPlayer(lambda: suspend CoroutineScope.() -> Unit) = withContext(Dispatchers.Main, lambda)
+    /** This runs the lambda in a thread/scope where DB access is permitted */
+    private suspend fun accessDatabase(lambda: suspend CoroutineScope.() -> Unit) = withContext(Dispatchers.IO, lambda)
 
     override fun onDestroy() {
         notificationManager?.setPlayer(null)
@@ -107,6 +113,23 @@ class MusicPlayerService : SuperService() {
                 .build(),  /* handleAudioFocus= */
             true
         )
+
+        fixedRateTimer("save podcast resume time", daemon = true, period = 15000L) {
+            serviceScope.launch {
+                accessPlayer {
+                    if (player == null) return@accessPlayer
+                    if (!player!!.isPlaying) return@accessPlayer
+                    val pos = player!!.currentPosition
+                    accessDatabase {
+                        val db = DatabaseSingleton.get(this@MusicPlayerService).fileEntityDao()
+                        val sel = db.getSelection() ?: return@accessDatabase
+                        if (!sel.isPodcast) return@accessDatabase
+                        sel.lastResumeMs = pos
+                        db.upsert(sel)
+                    }
+                }
+            }
+        }
 
         player!!.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {

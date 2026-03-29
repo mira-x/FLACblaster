@@ -8,6 +8,7 @@ import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 import java.io.File
 import androidx.core.net.toUri
+import org.jetbrains.annotations.Debug
 
 @Entity(tableName = "files", indices = [
     Index(value=["path"]),
@@ -56,6 +57,29 @@ data class FileEntity(
             return FileEntity(
                 path = f.absolutePath,
                 isFolder = f.isDirectory,
+                lastModifiedMs = 0,
+                size = 0,
+                childCount = 0,
+                durationMs = 0,
+                metadata = mapOf(),
+                bitrateKbps = 0,
+                sampleRateHz = 0,
+                channelCount = 0,
+                isPodcast = false,
+                lastResumeMs = 0,
+                isSelected = false
+            )
+        }
+
+        /**
+         * This creates an empty, dummy FileEntity with only "path" and "isFolder" set. It is meant for @Preview functions.
+         *
+         * Why a separate function? Simple: Using `emptyOfFile(File("/myDir/"))` will return a `FileEntity` with `isFolder = false` because `File` drops the trailing slash. This forbids usage of folders in @Preview functions.
+         */
+        fun emptyOfDummy(path: String): FileEntity {
+            return FileEntity(
+                path = path,
+                isFolder = path.endsWith('/'),
                 lastModifiedMs = 0,
                 size = 0,
                 childCount = 0,
