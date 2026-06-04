@@ -12,6 +12,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -57,10 +58,11 @@ class MusicPlayerService : SuperService() {
             db.fileEntityDao().setSelection(f.path)
         }
         player!!.setMediaItem(MediaItem.fromUri(f.getUri()))
-        player!!.prepare()
-        if (f.isPodcast) {
+        // TODO: Re-add podcast check
+        //if (f.isPodcast) {
             player!!.seekTo(f.lastResumeMs)
-        }
+        //}
+        player!!.prepare()
         player!!.play()
     }
 
@@ -114,7 +116,7 @@ class MusicPlayerService : SuperService() {
             true
         )
 
-        fixedRateTimer("save podcast resume time", daemon = true, period = 15000L) {
+        fixedRateTimer("save podcast resume time", daemon = true, period = 5000L) {
             serviceScope.launch {
                 accessPlayer {
                     if (player == null) return@accessPlayer
@@ -123,7 +125,11 @@ class MusicPlayerService : SuperService() {
                     accessDatabase {
                         val db = DatabaseSingleton.get(this@MusicPlayerService).fileEntityDao()
                         val sel = db.getSelection() ?: return@accessDatabase
-                        if (!sel.isPodcast) return@accessDatabase
+
+                        // TODO: Remove hack. We assume that all media longer than 10min is a podcast
+                        //if (!sel.isPodcast) return@accessDatabase
+                        if (sel.durationMs < 10*60*1000) return@accessDatabase
+
                         sel.lastResumeMs = pos
                         db.upsert(sel)
                     }

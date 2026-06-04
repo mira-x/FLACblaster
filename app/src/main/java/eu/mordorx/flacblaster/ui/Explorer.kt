@@ -220,9 +220,10 @@ fun TreeItemRow(
             width = .25.dp
         )
     ) {
-        if (f.isPodcast) {
+        // TODO: Re-add podcast check
+        //if (f.isPodcast) {
             PlaybackIndicator(bg) { f.lastResumeMs.toFloat() / f.durationMs.toFloat() }
-        }
+        //}
 
         AudioFileInfo(treeItem, fg)
     }
