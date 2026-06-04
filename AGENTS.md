@@ -1,4 +1,4 @@
-Rules for Claude:
+Rules for AI:
 
 - Read ARCHITECTURE.md and CONTRIBUTING.md
 - Write all comments and code in english.
