@@ -189,6 +189,10 @@ class MusicPlayerService : SuperService() {
             DatabaseSingleton.get(this@MusicPlayerService).fileEntityDao().getSelection()?.let {
                 accessPlayer {
                     player?.setMediaItem(MediaItem.fromUri(it.getUri()))
+                    // TODO: Re-add podcast check
+                    //if (it.isPodcast) {
+                        player?.seekTo(it.lastResumeMs)
+                    //}
                     player?.prepare()
                 }
             }
