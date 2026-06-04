@@ -22,7 +22,6 @@ abstract class SuperService : Service() {
          * Create a binding to the service T and return its service object through a flow.
          */
         inline fun <reified T: SuperService>instantiate(ctx: Context): StateFlow<T?> {
-            val a = HashMap<String, String>()
             Log.d("SuperService", "instantiate called for ${T::class.java.simpleName}")
             /** Use applicationContext to prevent Activity context leaks.
              The ServiceConnection and its closures can outlive the calling Activity. */
